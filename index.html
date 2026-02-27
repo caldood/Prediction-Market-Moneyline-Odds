@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ODDS|CALC — Moneyline Probability Engine</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:         #050505;
+      --bg-panel:   #0c0c0c;
+      --bg-raised:  #111111;
+      --bg-input:   #080808;
+      --border:     #1a1a1a;
+      --border-hi:  #2a2a2a;
+      --orange:     #FF9900;
+      --orange-hi:  #ffb833;
+      --orange-dim: #8a5200;
+      --orange-glo: rgba(255,153,0,0.07);
+      --orange-g2:  rgba(255,153,0,0.18);
+      --text:       #cecece;
+      --text-2:     #888888;
+      --text-3:     #555555;
+      --text-4:     #333333;
+      --green:      #00cc88;
+      --red:        #ff3d50;
+      --red-dim:    #7a1a22;
+      --font:       'IBM Plex Mono', 'Courier New', monospace;
+    }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html { font-size: 13px; scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── HEADER ─────────────────────────────── */
+    .hdr {
+      position: sticky; top: 0; z-index: 100;
+      background: #000;
+      border-bottom: 2px solid var(--orange);
+    }
+    .hdr-top {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo {
+      font-size: 1.15rem; font-weight: 700; letter-spacing: .18em;
+      color: var(--orange);
+    }
+    .logo span { color: var(--text-3); }
+    .hdr-title {
+      font-size: .65rem; letter-spacing: .18em; text-transform: uppercase;
+      color: var(--text-3);
+    }
+    .hdr-right {
+      display: flex; align-items: center; gap: 12px;
+      font-size: .72rem;
+    }
+    .status-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      animation: pulse 2s ease-in-out infinite;
+      display: inline-block;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+    #clock { color: var(--orange); font-weight: 500; }
+
+    /* ── TICKER ──────────────────────────────── */
+    .ticker-wrap {
+      height: 28px; overflow: hidden; background: #000;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center;
+    }
+    .ticker-scroll {
+      display: flex; gap: 0; white-space: nowrap;
+      animation: tick 40s linear infinite;
+    }
+    @keyframes tick { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+    .tick-item {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 0 24px; font-size: .67rem;
+      border-right: 1px solid var(--border);
+    }
+    .tick-lbl { color: var(--text-4); text-transform: uppercase; letter-spacing:.08em; }
+    .tick-odds { color: var(--orange); font-weight: 600; }
+    .tick-prob { color: var(--green); }
+
+    /* ── CONTROLS BAR ──────────────────────── */
+    .ctrl-bar {
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 20px;
+      display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    }
+    .tgl-group { display: flex; border: 1px solid var(--border-hi); }
+    .tgl-btn {
+      background: transparent; border: none; cursor: pointer;
+      font-family: var(--font); font-size: .67rem; font-weight: 500;
+      letter-spacing: .1em; text-transform: uppercase;
+      color: var(--text-2); padding: 5px 14px;
+      transition: all .12s ease;
+    }
+    .tgl-btn:hover { color: var(--text); background: var(--bg-raised); }
+    .tgl-btn.on { background: var(--orange); color: #000; font-weight: 700; }
+    .ctrl-sep { width:1px; height:20px; background: var(--border-hi); }
+    .vig-row {
+      display: flex; align-items: center; gap: 8px; cursor: pointer;
+    }
+    .vig-lbl {
+      font-size: .67rem; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--text-2);
+    }
+    /* toggle switch */
+    .sw { position:relative; width:38px; height:20px; }
+    .sw input { opacity:0; width:0; height:0; }
+    .sw-track {
+      position:absolute; inset:0; background: var(--border-hi);
+      border-radius: 2px; transition: .18s; cursor: pointer;
+    }
+    .sw-track::before {
+      content:''; position:absolute;
+      width:14px; height:14px; left:3px; top:3px;
+      background: var(--text-3); border-radius:1px;
+      transition: .18s;
+    }
+    .sw input:checked + .sw-track { background: var(--orange-dim); }
+    .sw input:checked + .sw-track::before {
+      transform: translateX(18px); background: var(--orange);
+    }
+    .hint { font-size:.6rem; color:var(--text-4); }
+
+    /* ── LAYOUT GRID ─────────────────────────── */
+    .main-wrap {
+      display: grid; grid-template-columns: 1fr 320px;
+      gap: 1px; background: var(--border);
+    }
+    .panel { background: var(--bg-panel); padding: 20px; }
+    .p-title {
+      font-size: .6rem; font-weight: 700; letter-spacing: .2em;
+      text-transform: uppercase; color: var(--text-4);
+      padding-bottom: 10px; margin-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── ODDS INPUT ──────────────────────────── */
+    .f-lbl {
+      font-size: .6rem; letter-spacing: .15em; text-transform: uppercase;
+      color: var(--text-3); margin-bottom: 6px;
+    }
+    .odds-in {
+      width: 100%; background: var(--bg-input);
+      border: 1px solid var(--border-hi); border-left: 3px solid var(--orange);
+      color: var(--orange); font-family: var(--font);
+      font-size: 2.2rem; font-weight: 700; letter-spacing: .04em;
+      padding: 12px 16px; outline: none;
+      transition: box-shadow .15s, border-color .15s;
+    }
+    .odds-in:focus {
+      border-color: var(--orange);
+      box-shadow: 0 0 0 1px var(--orange-g2), inset 0 0 24px var(--orange-glo);
+    }
+    .odds-in.bad { border-left-color: var(--red); color: var(--red); }
+    .odds-in::placeholder { color: var(--text-4); }
+    .in-err { font-size:.6rem; color: var(--red); margin-top:4px; min-height:14px; }
+
+    /* ── PROFILE BADGE ───────────────────────── */
+    .profile-badge {
+      display: inline-block; font-size: .6rem; font-weight: 700;
+      letter-spacing: .12em; text-transform: uppercase;
+      padding: 3px 8px; margin-top: 6px;
+      border: 1px solid var(--border-hi);
+      color: var(--text-2); background: var(--bg-raised);
+      transition: all .15s;
+    }
+
+    /* ── SLIDER ──────────────────────────────── */
+    .sld-wrap { margin-top: 20px; }
+    .sld-lbls {
+      display: flex; justify-content: space-between;
+      font-size: .58rem; color: var(--text-4); margin-bottom: 5px;
+    }
+    .sld-mid { color: var(--text-4); }
+    input[type=range] {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; height: 3px; background: var(--border-hi);
+      outline: none; cursor: pointer; border-radius: 0;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 14px; height: 22px; background: var(--orange);
+      border-radius: 0; border: none;
+      box-shadow: 0 0 10px rgba(255,153,0,.4);
+      transition: box-shadow .1s;
+    }
+    input[type=range]:hover::-webkit-slider-thumb {
+      box-shadow: 0 0 18px rgba(255,153,0,.65);
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 14px; height: 22px; background: var(--orange);
+      border-radius: 0; border: none;
+    }
+    .sld-cur { text-align:center; font-size:.62rem; color:var(--text-3); margin-top:3px; }
+
+    /* ── QUICK PICKS ──────────────────────────── */
+    .picks { margin-top: 20px; }
+    .picks-grid { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+    .pk {
+      background: var(--bg-raised); border: 1px solid var(--border-hi);
+      color: var(--text-2); font-family: var(--font); font-size: .65rem;
+      font-weight: 500; padding: 4px 9px; cursor: pointer;
+      transition: all .1s; border-radius: 0;
+    }
+    .pk:hover { border-color: var(--orange-dim); color: var(--orange); background: var(--orange-glo); }
+    .pk.on { border-color: var(--orange); color: var(--orange); background: var(--orange-glo); }
+
+    /* ── EDGE CALC ────────────────────────────── */
+    .edge-section { margin-top: 24px; }
+    .edge-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+    .edge-in {
+      width: 90px; background: var(--bg-input);
+      border: 1px solid var(--border-hi); border-bottom: 2px solid var(--green);
+      color: var(--green); font-family: var(--font);
+      font-size: 1rem; font-weight: 600; padding: 6px 10px; outline: none;
+    }
+    .edge-in:focus { border-color: var(--green); }
+    .edge-key { font-size:.62rem; color:var(--text-3); }
+    .edge-val { font-size: .85rem; font-weight: 600; }
+    .edge-pos { color: var(--green); }
+    .edge-neg { color: var(--red); }
+    .edge-neu { color: var(--text-2); }
+    .kelly-val { font-size: .75rem; }
+
+    /* ── METRICS PANEL ───────────────────────── */
+    .metrics { display:flex; flex-direction:column; }
+    .m-block {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .m-block:last-child { border-bottom: none; }
+    .m-lbl {
+      font-size:.58rem; letter-spacing:.18em; text-transform:uppercase;
+      color: var(--text-4); margin-bottom: 5px;
+    }
+    .m-val {
+      font-size: 2.6rem; font-weight: 700;
+      color: var(--orange); line-height: 1;
+    }
+    .m-val.sm { font-size: 1.8rem; color: var(--text); }
+    .m-val.md { font-size: 2rem; }
+    .m-sub { font-size: .6rem; color: var(--text-3); margin-top: 4px; }
+
+    /* probability bar */
+    .prob-bar { margin-top: 10px; }
+    .bar-track { height: 6px; background: var(--border-hi); position:relative; overflow:hidden; }
+    .bar-fill {
+      height: 100%;
+      background: linear-gradient(to right, var(--orange-dim), var(--orange));
+      transition: width .3s cubic-bezier(.4,0,.2,1);
+      position: relative;
+    }
+    .bar-fill::after {
+      content:''; position:absolute; right:0; top:0; bottom:0; width:2px;
+      background: var(--orange-hi); box-shadow: 0 0 6px var(--orange);
+    }
+    .bar-lbls {
+      display: flex; justify-content: space-between;
+      font-size: .55rem; color: var(--text-4); margin-top: 3px;
+    }
+
+    /* 2-col metrics grid */
+    .m-grid-2 {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 1px; background: var(--border);
+    }
+    .m-cell { background: var(--bg-panel); padding: 14px 16px; }
+
+    /* ── TWO-SIDED ───────────────────────────── */
+    .two-wrap { background: var(--border); margin-top: 1px; }
+    .two-hdr {
+      background: #000; padding: 9px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .two-hdr-txt {
+      font-size: .6rem; font-weight: 700; letter-spacing: .2em;
+      text-transform: uppercase; color: var(--text-4);
+    }
+    .two-grid {
+      display: grid; grid-template-columns: 1fr 180px 1fr;
+      gap: 1px; background: var(--border);
+    }
+    .side-panel { background: var(--bg-panel); padding: 18px; }
+    .side-hdr {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 14px;
+    }
+    .side-lbl { font-size:.65rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--text-2); }
+    .side-odds-in {
+      width: 100%; background: var(--bg-input);
+      border: 1px solid var(--border-hi); border-left: 3px solid var(--orange-dim);
+      color: var(--text); font-family: var(--font);
+      font-size: 1.55rem; font-weight: 700; padding: 9px 12px; outline: none;
+      transition: all .15s;
+    }
+    .side-odds-in:focus { border-left-color: var(--orange); color: var(--orange); }
+    .side-odds-in.bad { border-left-color: var(--red); color: var(--red); }
+    .stat-tbl { margin-top: 14px; }
+    .st-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 5px 0; border-bottom: 1px solid var(--border);
+    }
+    .st-row:last-child { border-bottom:none; }
+    .st-k { font-size:.58rem; text-transform:uppercase; letter-spacing:.12em; color:var(--text-4); }
+    .st-v { font-size:.82rem; font-weight:600; color:var(--text); }
+    .st-v.hi { color: var(--orange); }
+    .st-v.gr { color: var(--green); }
+
+    /* vig center */
+    .vig-center {
+      background: var(--bg-panel); padding: 18px;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 14px;
+    }
+    .vig-item { text-align: center; }
+    .vig-val { font-size: 1.6rem; font-weight: 700; }
+    .vig-hi { color: var(--red); }
+    .vig-ok { color: var(--text-2); }
+    .vig-lo { color: var(--green); }
+    .ovr-val { font-size: 1.1rem; font-weight: 600; color: var(--text); }
+    .vig-meter { width: 100%; }
+    .vm-track { height: 5px; background: var(--border-hi); }
+    .vm-fill { height: 100%; background: var(--red); transition: width .3s; }
+    .vig-note { font-size:.58rem; color:var(--text-4); text-align:center; line-height:1.7; }
+
+    /* ── REFERENCE TABLE ─────────────────────── */
+    .ref-wrap {
+      background: var(--bg-panel); margin-top: 1px; padding: 18px 20px;
+      border-top: 1px solid var(--border);
+    }
+    .ref-title {
+      font-size:.6rem; font-weight:700; letter-spacing:.2em; text-transform:uppercase;
+      color:var(--text-4); margin-bottom:12px;
+    }
+    .ref-table {
+      width: 100%; border-collapse: collapse; font-size: .65rem;
+    }
+    .ref-table th {
+      text-align: left; padding: 5px 12px;
+      font-size:.58rem; letter-spacing:.12em; text-transform:uppercase;
+      color: var(--text-4); background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .ref-table th:not(:first-child) { text-align: right; }
+    .ref-table td {
+      padding: 5px 12px; border-bottom: 1px solid var(--border);
+      color: var(--text-2);
+    }
+    .ref-table td:not(:first-child) { text-align: right; }
+    .ref-table tr:last-child td { border-bottom: none; }
+    .ref-table tr:hover td { background: var(--bg-raised); }
+    .ref-table .t-odds { color: var(--orange); font-weight: 600; }
+    .ref-table .t-prob { color: var(--text); font-weight: 500; }
+    .ref-table .t-price { color: var(--green); }
+    .ref-table .t-cat { color: var(--text-4); font-size: .58rem; }
+
+    /* ── FOOTER ──────────────────────────────── */
+    footer {
+      background: #000; border-top: 1px solid var(--border);
+      padding: 10px 20px;
+      display: flex; flex-wrap: wrap; gap: 24px; justify-content: space-between;
+      align-items: center;
+    }
+    .f-grp { display:flex; flex-direction:column; gap:3px; }
+    .f-key { font-size:.57rem; text-transform:uppercase; letter-spacing:.12em; color:var(--text-4); }
+    .f-val { font-size:.65rem; color:var(--orange-dim); font-style:italic; }
+    .f-copy { font-size:.58rem; color:var(--text-4); }
+
+    /* ── CURSOR ──────────────────────────────── */
+    .cur {
+      display:inline-block; width:2px; height:.9em; background:var(--orange);
+      vertical-align:middle; animation:blink 1s step-end infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* ── RESPONSIVE ──────────────────────────── */
+    @media (max-width:920px) {
+      .main-wrap { grid-template-columns: 1fr; }
+      .two-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width:600px) {
+      .hdr-title { display:none; }
+      .m-val { font-size:2rem; }
+      .m-grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ░░ HEADER ░░ -->
+<header class="hdr">
+  <div class="hdr-top">
+    <div class="logo">ODDS<span>|</span>CALC</div>
+    <div class="hdr-title">MONEYLINE PROBABILITY ENGINE — PREDICTION MARKET ANALYTICS</div>
+    <div class="hdr-right">
+      <span class="status-dot"></span>
+      <span id="clock">--:--:--</span>
+    </div>
+  </div>
+  <div class="ticker-wrap">
+    <div class="ticker-scroll" id="ticker"></div>
+  </div>
+</header>
+
+<!-- ░░ CONTROLS ░░ -->
+<div class="ctrl-bar">
+  <div class="tgl-group">
+    <button class="tgl-btn on" id="btn-sb" onclick="setView('sb')">SPORTSBOOK</button>
+    <button class="tgl-btn" id="btn-pm" onclick="setView('pm')">PRED&nbsp;MARKET</button>
+  </div>
+  <div class="ctrl-sep"></div>
+  <label class="vig-row" title="Remove bookmaker margin from probability">
+    <span class="vig-lbl">NO-VIG</span>
+    <div class="sw">
+      <input type="checkbox" id="vig-sw" onchange="onVigToggle()">
+      <span class="sw-track"></span>
+    </div>
+  </label>
+  <div class="ctrl-sep"></div>
+  <span class="hint">↑ ↓ ARROW KEYS ADJUST ODDS BY 5</span>
+</div>
+
+<!-- ░░ MAIN GRID ░░ -->
+<div class="main-wrap">
+
+  <!-- LEFT: CALCULATOR -->
+  <div class="panel">
+    <div class="p-title">SINGLE LINE CALCULATOR</div>
+
+    <div style="margin-bottom:20px">
+      <div class="f-lbl">AMERICAN ODDS</div>
+      <input class="odds-in" id="s-in" type="text" value="+150"
+        placeholder="+150 or -200"
+        oninput="onSingleInput()" onkeydown="onSingleKey(event)"
+        autocomplete="off" spellcheck="false">
+      <div class="in-err" id="s-err"></div>
+      <div style="margin-top:6px">
+        <span class="profile-badge" id="s-profile">MODERATE UNDERDOG</span>
+      </div>
+    </div>
+
+    <div class="sld-wrap">
+      <div class="f-lbl">SLIDER ADJUSTMENT</div>
+      <div class="sld-lbls">
+        <span>-1000</span>
+        <span class="sld-mid">◄ FAVORITE &nbsp;|&nbsp; UNDERDOG ►</span>
+        <span>+1000</span>
+      </div>
+      <input type="range" id="s-sld" min="-1000" max="999" step="1" value="149"
+        oninput="onSingleSlider()">
+      <div class="sld-cur" id="s-sld-lbl">+150</div>
+    </div>
+
+    <div class="picks">
+      <div class="f-lbl">QUICK PICKS</div>
+      <div class="picks-grid" id="picks-grid">
+        <button class="pk" onclick="setOdds(-500)">-500</button>
+        <button class="pk" onclick="setOdds(-350)">-350</button>
+        <button class="pk" onclick="setOdds(-200)">-200</button>
+        <button class="pk" onclick="setOdds(-150)">-150</button>
+        <button class="pk" onclick="setOdds(-120)">-120</button>
+        <button class="pk" onclick="setOdds(-110)">-110</button>
+        <button class="pk" onclick="setOdds(100)">+100</button>
+        <button class="pk" onclick="setOdds(110)">+110</button>
+        <button class="pk" onclick="setOdds(120)">+120</button>
+        <button class="pk on" onclick="setOdds(150)">+150</button>
+        <button class="pk" onclick="setOdds(200)">+200</button>
+        <button class="pk" onclick="setOdds(350)">+350</button>
+      </div>
+    </div>
+
+    <!-- EDGE CALCULATOR -->
+    <div class="edge-section">
+      <div class="f-lbl">PREDICTION MARKET EDGE CALCULATOR</div>
+      <div style="font-size:.58rem;color:var(--text-4);margin-bottom:6px">
+        Enter current market price (0–1) to see edge vs implied probability
+      </div>
+      <div class="edge-row">
+        <span class="edge-key">PM PRICE</span>
+        <input class="edge-in" id="pm-in" type="text" placeholder="0.500"
+          oninput="calcEdge()" autocomplete="off">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div class="edge-row" style="margin-top:0">
+            <span class="edge-key">EDGE</span>
+            <span class="edge-val edge-neu" id="edge-out">—</span>
+          </div>
+          <div class="edge-row" style="margin-top:0">
+            <span class="edge-key">KELLY&nbsp;%</span>
+            <span class="kelly-val edge-neu" id="kelly-out">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: METRICS -->
+  <div class="metrics">
+    <div class="m-block">
+      <div class="m-lbl">IMPLIED PROBABILITY <span class="cur"></span></div>
+      <div class="m-val" id="s-prob">40.00%</div>
+      <div class="prob-bar">
+        <div class="bar-track">
+          <div class="bar-fill" id="s-bar" style="width:40%"></div>
+        </div>
+        <div class="bar-lbls">
+          <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
+        </div>
+      </div>
+      <div class="m-sub" id="s-prob-note">Includes bookmaker margin</div>
+    </div>
+
+    <div class="m-block" id="fair-block" style="display:none">
+      <div class="m-lbl">FAIR PROBABILITY (NO-VIG)</div>
+      <div class="m-val md" id="s-fair" style="color:var(--green)">—</div>
+      <div class="m-sub">Single-line estimate (use 2-sided for full vig removal)</div>
+    </div>
+
+    <!-- SPORTSBOOK VIEW -->
+    <div id="view-sb">
+      <div class="m-grid-2">
+        <div class="m-cell">
+          <div class="m-lbl">DECIMAL ODDS</div>
+          <div class="m-val sm" id="s-dec">2.500x</div>
+          <div class="m-sub">Per $1 risked</div>
+        </div>
+        <div class="m-cell">
+          <div class="m-lbl">FRACTIONAL</div>
+          <div class="m-val sm" id="s-frac">3/2</div>
+          <div class="m-sub">Traditional</div>
+        </div>
+      </div>
+      <div class="m-block">
+        <div class="m-lbl">$100 BET RETURNS</div>
+        <div class="m-val sm" id="s-payout">$250.00</div>
+        <div class="m-sub" id="s-payout-note">Profit: $150.00</div>
+      </div>
+    </div>
+
+    <!-- PM VIEW -->
+    <div id="view-pm" style="display:none">
+      <div class="m-block">
+        <div class="m-lbl">CONTRACT PRICE</div>
+        <div class="m-val" id="s-pm-price">0.4000</div>
+        <div class="m-sub">Per $1 face-value contract</div>
+      </div>
+      <div class="m-grid-2">
+        <div class="m-cell">
+          <div class="m-lbl">BREAKEVEN</div>
+          <div class="m-val sm" id="s-be">40.00%</div>
+          <div class="m-sub">Min win rate</div>
+        </div>
+        <div class="m-cell">
+          <div class="m-lbl">PAYOUT MULT</div>
+          <div class="m-val sm" id="s-mult">2.50x</div>
+          <div class="m-sub">If contract wins</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ░░ TWO-SIDED MARKET ░░ -->
+<div class="two-wrap">
+  <div class="two-hdr">
+    <span class="two-hdr-txt">TWO-SIDED MARKET ANALYSIS — HEAD-TO-HEAD MATCHUP</span>
+  </div>
+  <div class="two-grid">
+
+    <!-- SIDE A -->
+    <div class="side-panel">
+      <div class="side-hdr">
+        <span class="side-lbl">SIDE A</span>
+        <span style="font-size:.58rem;color:var(--text-4)">TEAM / PLAYER A</span>
+      </div>
+      <div class="f-lbl">AMERICAN ODDS</div>
+      <input class="side-odds-in" id="a-in" type="text" value="-110"
+        oninput="onSideInput('a')" onkeydown="onSideKey(event,'a')" autocomplete="off">
+      <div class="in-err" id="a-err"></div>
+      <div style="margin-top:6px">
+        <input type="range" id="a-sld" min="-1000" max="999" step="1" value="-111"
+          oninput="onSideSlider('a')">
+        <div class="sld-cur" id="a-sld-lbl">-110</div>
+      </div>
+      <div class="stat-tbl">
+        <div class="st-row">
+          <span class="st-k">RAW IMPLIED</span>
+          <span class="st-v hi" id="a-raw">52.38%</span>
+        </div>
+        <div class="st-row">
+          <span class="st-k">FAIR (NO-VIG)</span>
+          <span class="st-v gr" id="a-fair">50.00%</span>
+        </div>
+        <div class="st-row">
+          <span class="st-k">PM PRICE</span>
+          <span class="st-v" id="a-pm">0.5238</span>
+        </div>
+        <div class="st-row">
+          <span class="st-k">DECIMAL</span>
+          <span class="st-v" id="a-dec">1.909x</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIG CENTER -->
+    <div class="vig-center">
+      <div class="vig-item">
+        <div class="m-lbl" style="text-align:center">OVERROUND</div>
+        <div class="ovr-val" id="ovr-val">104.76%</div>
+      </div>
+      <div class="vig-meter">
+        <div class="vm-track">
+          <div class="vm-fill" id="vig-fill" style="width:31%"></div>
+        </div>
+      </div>
+      <div class="vig-item">
+        <div class="m-lbl" style="text-align:center">BOOK VIG</div>
+        <div class="vig-val vig-ok" id="vig-val">4.76%</div>
+      </div>
+      <div class="vig-note">
+        SHARP LINE: &lt;3%<br>
+        STANDARD: 3–6%<br>
+        SOFT BOOK: &gt;8%
+      </div>
+    </div>
+
+    <!-- SIDE B -->
+    <div class="side-panel">
+      <div class="side-hdr">
+        <span class="side-lbl">SIDE B</span>
+        <span style="font-size:.58rem;color:var(--text-4)">TEAM / PLAYER B</span>
+      </div>
+      <div class="f-lbl">AMERICAN ODDS</div>
+      <input class="side-odds-in" id="b-in" type="text" value="-110"
+        oninput="onSideInput('b')" onkeydown="onSideKey(event,'b')" autocomplete="off">
+      <div class="in-err" id="b-err"></div>
+      <div style="margin-top:6px">
+        <input type="range" id="b-sld" min="-1000" max="999" step="1" value="-111"
+          oninput="onSideSlider('b')">
+        <div class="sld-cur" id="b-sld-lbl">-110</div>
+      </div>
+      <div class="stat-tbl">
+        <div class="st-row">
+          <span class="st-k">RAW IMPLIED</span>
+          <span class="st-v hi" id="b-raw">52.38%</span>
+        </div>
+        <div class="st-row">
+          <span class="st-k">FAIR (NO-VIG)</span>
+          <span class="st-v gr" id="b-fair">50.00%</span>
+        </div>
+        <div class="st-row">
+          <span class="st-k">PM PRICE</span>
+          <span class="st-v" id="b-pm">0.5238</span>
+        </div>
+        <div class="st-row">
+          <span class="st-k">DECIMAL</span>
+          <span class="st-v" id="b-dec">1.909x</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ░░ REFERENCE TABLE ░░ -->
+<div class="ref-wrap">
+  <div class="ref-title">ODDS / PROBABILITY REFERENCE TABLE</div>
+  <table class="ref-table">
+    <thead>
+      <tr>
+        <th>AMERICAN</th>
+        <th>IMPLIED %</th>
+        <th>PM PRICE</th>
+        <th>DECIMAL</th>
+        <th>CATEGORY</th>
+      </tr>
+    </thead>
+    <tbody id="ref-tbody"></tbody>
+  </table>
+</div>
+
+<!-- ░░ FOOTER ░░ -->
+<footer>
+  <div class="f-grp">
+    <div class="f-key">POSITIVE ODDS</div>
+    <div class="f-val">P = 100 / (odds + 100)</div>
+  </div>
+  <div class="f-grp">
+    <div class="f-key">NEGATIVE ODDS</div>
+    <div class="f-val">P = |odds| / (|odds| + 100)</div>
+  </div>
+  <div class="f-grp">
+    <div class="f-key">NO-VIG FAIR PROB</div>
+    <div class="f-val">P_fair = P_raw / Σ(P_all)</div>
+  </div>
+  <div class="f-grp">
+    <div class="f-key">BOOK VIG</div>
+    <div class="f-val">VIG% = Σ(P_implied) − 100%</div>
+  </div>
+  <div class="f-grp">
+    <div class="f-key">KELLY CRITERION</div>
+    <div class="f-val">f* = (V − P) / (1 − P)</div>
+  </div>
+  <div class="f-copy">ODDS|CALC v1.0 — Moneyline Probability Engine</div>
+</footer>
+
+<script>
+  // ── STATE ───────────────────────────────────────────
+  const S = { single: 150, sideA: -110, sideB: -110, view: 'sb', noVig: false };
+
+  // ── CLOCK ────────────────────────────────────────────
+  function tick() {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2,'0');
+    const m = String(now.getMinutes()).padStart(2,'0');
+    const s = String(now.getSeconds()).padStart(2,'0');
+    document.getElementById('clock').textContent = `${h}:${m}:${s} EST`;
+  }
+  setInterval(tick, 1000); tick();
+
+  // ── TICKER ───────────────────────────────────────────
+  const TICKS = [
+    [-110,'NFL STD'], [-500,'HVY FAV'], [-200,'FAV'], [-150,'MOD FAV'],
+    [100,'EVEN'], [110,'DOG'], [150,'MOD DOG'], [200,'UND'],
+    [-300,'BIG FAV'], [300,'BIG DOG'], [500,'LONG SHOT'],
+    [-120,'SLT FAV'], [120,'SLT DOG'], [-130,'LT FAV'], [130,'LT DOG'],
+  ];
+  (function buildTicker() {
+    const items = TICKS.map(([o, l]) => {
+      const sign = o > 0 ? '+' : '';
+      const p = impliedPct(o).toFixed(1);
+      return `<span class="tick-item">
+        <span class="tick-lbl">${l}</span>
+        <span class="tick-odds">${sign}${o}</span>
+        <span class="tick-prob">${p}%</span>
+      </span>`;
+    }).join('');
+    const el = document.getElementById('ticker');
+    el.innerHTML = items + items; // duplicate for seamless loop
+  })();
+
+  // ── MATH ─────────────────────────────────────────────
+  function impliedRaw(odds) {
+    return odds > 0 ? 100 / (odds + 100) : Math.abs(odds) / (Math.abs(odds) + 100);
+  }
+  function impliedPct(odds) { return impliedRaw(odds) * 100; }
+  function decimal(odds) {
+    return odds > 0 ? (odds / 100) + 1 : (100 / Math.abs(odds)) + 1;
+  }
+  function fractional(odds) {
+    const d = decimal(odds);
+    const num = Math.round((d - 1) * 100);
+    const den = 100;
+    const g = gcd(num, den);
+    return `${num/g}/${den/g}`;
+  }
+  function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+
+  // Slider ↔ Odds mapping (skips zero)
+  // slider [-1000, -1] → odds [-1000, -1]
+  // slider [0, 999]    → odds [+1, +1000]
+  function sldToOdds(v) { return v < 0 ? v : v + 1; }
+  function oddsToSld(o) { return o < 0 ? o : o - 1; }
+
+  // Odds profile label
+  function profile(odds) {
+    if (odds <= -500)       return 'HEAVY FAVORITE';
+    if (odds <= -300)       return 'STRONG FAVORITE';
+    if (odds <= -150)       return 'FAVORITE';
+    if (odds <= -110)       return 'SLIGHT FAVORITE';
+    if (odds < 110)         return "PICK'EM / NEAR EVEN";
+    if (odds <= 150)        return 'SLIGHT UNDERDOG';
+    if (odds <= 300)        return 'MODERATE UNDERDOG';
+    if (odds <= 500)        return 'UNDERDOG';
+    return 'HEAVY UNDERDOG / LONG SHOT';
+  }
+
+  // ── PARSE & VALIDATE ──────────────────────────────────
+  function parse(raw) {
+    const s = raw.trim();
+    if (!s || s === '+' || s === '-') return { partial: true };
+    const n = parseInt(s, 10);
+    if (isNaN(n))        return { err: 'Enter valid odds (e.g. +150, -200)' };
+    if (n === 0)         return { err: 'Odds cannot be zero' };
+    if (Math.abs(n) > 1000) return { err: 'Range: -1000 to +1000' };
+    return { val: n };
+  }
+
+  function fmtOdds(o) { return (o > 0 ? '+' : '') + o; }
+
+  // ── SINGLE CALCULATOR ─────────────────────────────────
+  function onSingleInput() {
+    const r = parse(document.getElementById('s-in').value);
+    const errEl = document.getElementById('s-err');
+    const inEl  = document.getElementById('s-in');
+    if (r.partial) { inEl.classList.remove('bad'); errEl.textContent = ''; return; }
+    if (r.err) { inEl.classList.add('bad'); errEl.textContent = r.err; return; }
+    inEl.classList.remove('bad'); errEl.textContent = '';
+    S.single = r.val;
+    syncSlider();
+    renderSingle();
+  }
+
+  function onSingleSlider() {
+    const v = +document.getElementById('s-sld').value;
+    S.single = sldToOdds(v);
+    document.getElementById('s-in').value = fmtOdds(S.single);
+    document.getElementById('s-in').classList.remove('bad');
+    document.getElementById('s-err').textContent = '';
+    syncSlider();
+    renderSingle();
+  }
+
+  function onSingleKey(e) {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const step = 5;
+    let o = S.single;
+    if (e.key === 'ArrowUp') {
+      let n = o + step;
+      if (o < 0 && n >= 0) n = 100;
+      o = Math.min(n, 1000);
+    } else {
+      let n = o - step;
+      if (o > 0 && n <= 0) n = -100;
+      o = Math.max(n, -1000);
+    }
+    S.single = o;
+    document.getElementById('s-in').value = fmtOdds(o);
+    document.getElementById('s-in').classList.remove('bad');
+    document.getElementById('s-err').textContent = '';
+    syncSlider();
+    renderSingle();
+  }
+
+  function setOdds(o) {
+    S.single = o;
+    document.getElementById('s-in').value = fmtOdds(o);
+    document.getElementById('s-in').classList.remove('bad');
+    document.getElementById('s-err').textContent = '';
+    syncSlider();
+    renderSingle();
+    // highlight active pick
+    document.querySelectorAll('.pk').forEach(b => {
+      b.classList.toggle('on', b.textContent === fmtOdds(o));
+    });
+  }
+
+  function syncSlider() {
+    const sv = oddsToSld(S.single);
+    document.getElementById('s-sld').value = sv;
+    document.getElementById('s-sld-lbl').textContent = fmtOdds(S.single);
+  }
+
+  function renderSingle() {
+    const o = S.single;
+    const raw = impliedRaw(o);
+    const pct = raw * 100;
+    const dec = decimal(o);
+
+    document.getElementById('s-prob').textContent = pct.toFixed(2) + '%';
+    document.getElementById('s-bar').style.width = pct.toFixed(2) + '%';
+    document.getElementById('s-profile').textContent = profile(o);
+
+    // No-vig note (single line: estimated via assuming symmetric counterpart)
+    if (S.noVig) {
+      // Estimate assuming same-vig counterpart at implied complement
+      const fairEst = pct; // for single we just note it
+      document.getElementById('s-fair').textContent = pct.toFixed(2) + '%';
+      document.getElementById('s-prob-note').textContent = 'Raw probability (vig removal requires 2-sided input)';
+      document.getElementById('fair-block').style.display = 'block';
+    } else {
+      document.getElementById('fair-block').style.display = 'none';
+      document.getElementById('s-prob-note').textContent = 'Includes bookmaker margin';
+    }
+
+    // Sportsbook view
+    document.getElementById('s-dec').textContent = dec.toFixed(3) + 'x';
+    document.getElementById('s-frac').textContent = fractional(o);
+    const ret = (100 * dec).toFixed(2);
+    const profit = (100 * (dec - 1)).toFixed(2);
+    document.getElementById('s-payout').textContent = '$' + ret;
+    document.getElementById('s-payout-note').textContent = 'Profit: $' + profit;
+
+    // PM view
+    document.getElementById('s-pm-price').textContent = raw.toFixed(4);
+    document.getElementById('s-be').textContent = pct.toFixed(2) + '%';
+    document.getElementById('s-mult').textContent = dec.toFixed(3) + 'x';
+
+    calcEdge();
+  }
+
+  // ── EDGE + KELLY ──────────────────────────────────────
+  function calcEdge() {
+    const raw  = document.getElementById('pm-in').value.trim();
+    const pmP  = parseFloat(raw);
+    const fair = impliedRaw(S.single);
+    const eEl  = document.getElementById('edge-out');
+    const kEl  = document.getElementById('kelly-out');
+
+    if (!raw || isNaN(pmP) || pmP <= 0 || pmP >= 1) {
+      eEl.textContent = '—'; eEl.className = 'edge-val edge-neu';
+      kEl.textContent = '—'; kEl.className = 'kelly-val edge-neu';
+      return;
+    }
+
+    const edge = (fair - pmP) * 100;
+    const kelly = pmP < 1 ? ((fair - pmP) / (1 - pmP)) * 100 : 0;
+
+    const sign = v => v >= 0 ? '+' : '';
+    const cls  = v => v > 0.5 ? 'edge-pos' : v < -0.5 ? 'edge-neg' : 'edge-neu';
+
+    eEl.textContent = `${sign(edge)}${edge.toFixed(2)}pp`;
+    eEl.className = `edge-val ${cls(edge)}`;
+
+    kEl.textContent = kelly > 0 ? `${kelly.toFixed(1)}% of bankroll` : `${kelly.toFixed(1)}% (fade)`;
+    kEl.className = `kelly-val ${cls(kelly)}`;
+  }
+
+  // ── VIEW TOGGLE ───────────────────────────────────────
+  function setView(v) {
+    S.view = v;
+    document.getElementById('btn-sb').classList.toggle('on', v === 'sb');
+    document.getElementById('btn-pm').classList.toggle('on', v === 'pm');
+    document.getElementById('view-sb').style.display = v === 'sb' ? 'block' : 'none';
+    document.getElementById('view-pm').style.display = v === 'pm' ? 'block' : 'none';
+  }
+
+  function onVigToggle() {
+    S.noVig = document.getElementById('vig-sw').checked;
+    renderSingle();
+    renderTwoSided();
+  }
+
+  // ── TWO-SIDED MARKET ──────────────────────────────────
+  function onSideInput(s) {
+    const id = s === 'a' ? 'a-in' : 'b-in';
+    const r = parse(document.getElementById(id).value);
+    const errEl = document.getElementById(s + '-err');
+    const inEl  = document.getElementById(id);
+    if (r.partial) { inEl.classList.remove('bad'); errEl.textContent = ''; return; }
+    if (r.err)     { inEl.classList.add('bad'); errEl.textContent = r.err; return; }
+    inEl.classList.remove('bad'); errEl.textContent = '';
+    if (s === 'a') S.sideA = r.val; else S.sideB = r.val;
+    syncSideSlider(s);
+    renderTwoSided();
+  }
+
+  function onSideSlider(s) {
+    const sldId = s + '-sld';
+    const inId  = s + '-in';
+    const o = sldToOdds(+document.getElementById(sldId).value);
+    if (s === 'a') S.sideA = o; else S.sideB = o;
+    document.getElementById(inId).value = fmtOdds(o);
+    document.getElementById(inId).classList.remove('bad');
+    document.getElementById(s + '-err').textContent = '';
+    document.getElementById(s + '-sld-lbl').textContent = fmtOdds(o);
+    renderTwoSided();
+  }
+
+  function onSideKey(e, s) {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const step = 5;
+    let o = s === 'a' ? S.sideA : S.sideB;
+    if (e.key === 'ArrowUp') {
+      let n = o + step;
+      if (o < 0 && n >= 0) n = 100;
+      o = Math.min(n, 1000);
+    } else {
+      let n = o - step;
+      if (o > 0 && n <= 0) n = -100;
+      o = Math.max(n, -1000);
+    }
+    if (s === 'a') S.sideA = o; else S.sideB = o;
+    document.getElementById(s + '-in').value = fmtOdds(o);
+    document.getElementById(s + '-in').classList.remove('bad');
+    document.getElementById(s + '-err').textContent = '';
+    syncSideSlider(s);
+    renderTwoSided();
+  }
+
+  function syncSideSlider(s) {
+    const o = s === 'a' ? S.sideA : S.sideB;
+    document.getElementById(s + '-sld').value = oddsToSld(o);
+    document.getElementById(s + '-sld-lbl').textContent = fmtOdds(o);
+  }
+
+  function renderTwoSided() {
+    const oA = S.sideA, oB = S.sideB;
+    const pA = impliedRaw(oA), pB = impliedRaw(oB);
+    const total = pA + pB;
+    const vig = (total - 1) * 100;
+    const fairA = pA / total, fairB = pB / total;
+
+    const displayA = S.noVig ? fairA : pA;
+    const displayB = S.noVig ? fairB : pB;
+
+    // Side A
+    document.getElementById('a-raw').textContent  = (pA * 100).toFixed(2) + '%';
+    document.getElementById('a-fair').textContent = (fairA * 100).toFixed(2) + '%';
+    document.getElementById('a-pm').textContent   = displayA.toFixed(4);
+    document.getElementById('a-dec').textContent  = decimal(oA).toFixed(3) + 'x';
+
+    // Side B
+    document.getElementById('b-raw').textContent  = (pB * 100).toFixed(2) + '%';
+    document.getElementById('b-fair').textContent = (fairB * 100).toFixed(2) + '%';
+    document.getElementById('b-pm').textContent   = displayB.toFixed(4);
+    document.getElementById('b-dec').textContent  = decimal(oB).toFixed(3) + 'x';
+
+    // Vig center
+    document.getElementById('ovr-val').textContent = (total * 100).toFixed(2) + '%';
+    const vigEl = document.getElementById('vig-val');
+    vigEl.textContent = vig.toFixed(2) + '%';
+    vigEl.className = 'vig-val ' + (vig < 3 ? 'vig-lo' : vig < 6 ? 'vig-ok' : 'vig-hi');
+
+    // Vig meter: scale 0–15% vig → 0–100%
+    document.getElementById('vig-fill').style.width = Math.min((vig / 15) * 100, 100) + '%';
+  }
+
+  // ── REFERENCE TABLE ───────────────────────────────────
+  const REF_ODDS = [
+    [-1000,'MEGA FAVORITE'],[-500,'HEAVY FAVORITE'],[-300,'STRONG FAVORITE'],
+    [-200,'FAVORITE'],[-150,'MODERATE FAVORITE'],[-130,'SLIGHT FAVORITE'],
+    [-120,'SLIGHT FAVORITE'],[-110,'STANDARD LINE'],
+    [100,'EVEN MONEY'],[110,'SLIGHT UNDERDOG'],[120,'SLIGHT UNDERDOG'],
+    [130,'MODERATE UNDERDOG'],[150,'UNDERDOG'],[200,'UNDERDOG'],
+    [300,'BIG UNDERDOG'],[500,'LONG SHOT'],[1000,'MEGA LONG SHOT'],
+  ];
+  (function buildRef() {
+    const tb = document.getElementById('ref-tbody');
+    tb.innerHTML = REF_ODDS.map(([o, cat]) => {
+      const pct  = impliedPct(o).toFixed(2);
+      const pr   = impliedRaw(o).toFixed(4);
+      const dec  = decimal(o).toFixed(3);
+      const sign = o > 0 ? '+' : '';
+      return `<tr>
+        <td class="t-odds">${sign}${o}</td>
+        <td class="t-prob">${pct}%</td>
+        <td class="t-price">${pr}</td>
+        <td>${dec}x</td>
+        <td class="t-cat">${cat}</td>
+      </tr>`;
+    }).join('');
+  })();
+
+  // ── INIT ─────────────────────────────────────────────
+  function init() {
+    syncSlider();
+    renderSingle();
+    syncSideSlider('a');
+    syncSideSlider('b');
+    renderTwoSided();
+  }
+  init();
+</script>
+</body>
+</html>
