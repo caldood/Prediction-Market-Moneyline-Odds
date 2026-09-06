@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Convert American, decimal, fractional odds and prediction-market prices to implied probability, strip the vig, and size bets with Kelly.">
   <title>ODDS|CALC — Moneyline Probability Engine</title>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <style>
@@ -19,16 +20,17 @@
       --orange-glo: rgba(255,153,0,0.07);
       --orange-g2:  rgba(255,153,0,0.18);
       --text:       #cecece;
-      --text-2:     #888888;
-      --text-3:     #555555;
-      --text-4:     #333333;
+      --text-2:     #9a9a9a;
+      --text-3:     #7a7a7a;
+      --text-4:     #626262;
       --green:      #00cc88;
+      --green-dim:  #0b5a40;
       --red:        #ff3d50;
       --red-dim:    #7a1a22;
       --font:       'IBM Plex Mono', 'Courier New', monospace;
     }
     *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-    html { font-size: 13px; scroll-behavior: smooth; }
+    html { font-size: 14px; scroll-behavior: smooth; }
     body {
       background: var(--bg);
       color: var(--text);
@@ -36,6 +38,9 @@
       min-height: 100vh;
       overflow-x: hidden;
     }
+    button, input { font-family: var(--font); }
+    :focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+    input[type=range]:focus-visible { outline-offset: 6px; }
 
     /* ── HEADER ─────────────────────────────── */
     .hdr {
@@ -69,7 +74,7 @@
       display: inline-block;
     }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
-    #clock { color: var(--orange); font-weight: 500; }
+    #clock { color: var(--orange); font-weight: 500; font-variant-numeric: tabular-nums; }
 
     /* ── TICKER ──────────────────────────────── */
     .ticker-wrap {
@@ -81,12 +86,16 @@
       display: flex; gap: 0; white-space: nowrap;
       animation: tick 40s linear infinite;
     }
+    .ticker-wrap:hover .ticker-scroll { animation-play-state: paused; }
     @keyframes tick { from{transform:translateX(0)} to{transform:translateX(-50%)} }
     .tick-item {
       display: inline-flex; align-items: center; gap: 7px;
       padding: 0 24px; font-size: .67rem;
       border-right: 1px solid var(--border);
+      background: none; border-top: none; border-bottom: none; border-left: none;
+      color: inherit; cursor: pointer; height: 28px;
     }
+    .tick-item:hover .tick-lbl { color: var(--text-2); }
     .tick-lbl { color: var(--text-4); text-transform: uppercase; letter-spacing:.08em; }
     .tick-odds { color: var(--orange); font-weight: 600; }
     .tick-prob { color: var(--green); }
@@ -101,13 +110,14 @@
     .tgl-group { display: flex; border: 1px solid var(--border-hi); }
     .tgl-btn {
       background: transparent; border: none; cursor: pointer;
-      font-family: var(--font); font-size: .67rem; font-weight: 500;
+      font-size: .67rem; font-weight: 500;
       letter-spacing: .1em; text-transform: uppercase;
       color: var(--text-2); padding: 5px 14px;
       transition: all .12s ease;
     }
     .tgl-btn:hover { color: var(--text); background: var(--bg-raised); }
     .tgl-btn.on { background: var(--orange); color: #000; font-weight: 700; }
+    .tgl-group.sm .tgl-btn { padding: 4px 10px; font-size: .68rem; }
     .ctrl-sep { width:1px; height:20px; background: var(--border-hi); }
     .vig-row {
       display: flex; align-items: center; gap: 8px; cursor: pointer;
@@ -118,7 +128,7 @@
     }
     /* toggle switch */
     .sw { position:relative; width:38px; height:20px; }
-    .sw input { opacity:0; width:0; height:0; }
+    .sw input { opacity:0; width:0; height:0; position:absolute; }
     .sw-track {
       position:absolute; inset:0; background: var(--border-hi);
       border-radius: 2px; transition: .18s; cursor: pointer;
@@ -133,30 +143,56 @@
     .sw input:checked + .sw-track::before {
       transform: translateX(18px); background: var(--orange);
     }
-    .hint { font-size:.6rem; color:var(--text-4); }
+    .sw input:focus-visible + .sw-track { outline: 2px solid var(--orange); outline-offset: 2px; }
+    .hint { font-size:.66rem; color:var(--text-4); }
+    .mini-field { display:flex; align-items:center; gap:6px; }
+    .mini-in {
+      width: 54px; background: var(--bg-input);
+      border: 1px solid var(--border-hi); border-bottom: 2px solid var(--orange-dim);
+      color: var(--orange); font-size: .8rem; font-weight: 600;
+      padding: 3px 6px; outline: none; text-align: right;
+    }
+    .mini-in:focus { border-color: var(--orange); }
+    .mini-in.bad { border-bottom-color: var(--red); color: var(--red); }
+    .mini-unit { font-size:.68rem; color:var(--text-3); }
+    .link-btn {
+      background: transparent; border: 1px solid var(--border-hi); color: var(--text-2);
+      font-size: .68rem; letter-spacing: .1em; text-transform: uppercase;
+      padding: 4px 10px; cursor: pointer; transition: all .12s;
+      margin-left: auto;
+    }
+    .link-btn:hover { color: var(--orange); border-color: var(--orange-dim); }
+    .link-btn.ok { color: var(--green); border-color: var(--green-dim); }
 
     /* ── LAYOUT GRID ─────────────────────────── */
     .main-wrap {
-      display: grid; grid-template-columns: 1fr 320px;
-      gap: 1px; background: var(--border);
+      display: grid; grid-template-columns: 1fr 340px;
+      grid-template-areas: "input metrics" "tools metrics" "edge metrics";
+      grid-template-rows: auto auto 1fr;
+      background: var(--bg-panel);
     }
     .panel { background: var(--bg-panel); padding: 20px; }
+    .panel-input { grid-area: input; padding-bottom: 0; }
+    .panel-tools { grid-area: tools; padding-top: 0; }
+    .panel-edge  { grid-area: edge; padding-top: 0; }
+    .metrics     { grid-area: metrics; border-left: 1px solid var(--border); }
     .p-title {
-      font-size: .6rem; font-weight: 700; letter-spacing: .2em;
+      font-size: .66rem; font-weight: 700; letter-spacing: .2em;
       text-transform: uppercase; color: var(--text-4);
       padding-bottom: 10px; margin-bottom: 18px;
       border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
     }
 
     /* ── ODDS INPUT ──────────────────────────── */
     .f-lbl {
-      font-size: .6rem; letter-spacing: .15em; text-transform: uppercase;
+      font-size: .66rem; letter-spacing: .15em; text-transform: uppercase;
       color: var(--text-3); margin-bottom: 6px;
     }
     .odds-in {
       width: 100%; background: var(--bg-input);
       border: 1px solid var(--border-hi); border-left: 3px solid var(--orange);
-      color: var(--orange); font-family: var(--font);
+      color: var(--orange);
       font-size: 2.2rem; font-weight: 700; letter-spacing: .04em;
       padding: 12px 16px; outline: none;
       transition: box-shadow .15s, border-color .15s;
@@ -167,11 +203,14 @@
     }
     .odds-in.bad { border-left-color: var(--red); color: var(--red); }
     .odds-in::placeholder { color: var(--text-4); }
-    .in-err { font-size:.6rem; color: var(--red); margin-top:4px; min-height:14px; }
+    .in-err { font-size:.66rem; color: var(--red); margin-top:4px; min-height:14px; }
+    .in-row { display:flex; gap:10px; align-items:flex-end; }
+    .in-row .odds-in { flex: 1; }
+    .in-unit { font-size: 1rem; color: var(--text-3); padding-bottom: 14px; min-width: 2ch; }
 
     /* ── PROFILE BADGE ───────────────────────── */
     .profile-badge {
-      display: inline-block; font-size: .6rem; font-weight: 700;
+      display: inline-block; font-size: .66rem; font-weight: 700;
       letter-spacing: .12em; text-transform: uppercase;
       padding: 3px 8px; margin-top: 6px;
       border: 1px solid var(--border-hi);
@@ -180,10 +219,10 @@
     }
 
     /* ── SLIDER ──────────────────────────────── */
-    .sld-wrap { margin-top: 20px; }
+    .sld-wrap { margin-top: 4px; }
     .sld-lbls {
       display: flex; justify-content: space-between;
-      font-size: .58rem; color: var(--text-4); margin-bottom: 5px;
+      font-size: .64rem; color: var(--text-4); margin-bottom: 5px;
     }
     .sld-mid { color: var(--text-4); }
     input[type=range] {
@@ -205,14 +244,14 @@
       width: 14px; height: 22px; background: var(--orange);
       border-radius: 0; border: none;
     }
-    .sld-cur { text-align:center; font-size:.62rem; color:var(--text-3); margin-top:3px; }
+    .sld-cur { text-align:center; font-size:.68rem; color:var(--text-3); margin-top:3px; }
 
     /* ── QUICK PICKS ──────────────────────────── */
     .picks { margin-top: 20px; }
     .picks-grid { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
     .pk {
       background: var(--bg-raised); border: 1px solid var(--border-hi);
-      color: var(--text-2); font-family: var(--font); font-size: .65rem;
+      color: var(--text-2); font-size: .65rem;
       font-weight: 500; padding: 4px 9px; cursor: pointer;
       transition: all .1s; border-radius: 0;
     }
@@ -220,40 +259,65 @@
     .pk.on { border-color: var(--orange); color: var(--orange); background: var(--orange-glo); }
 
     /* ── EDGE CALC ────────────────────────────── */
-    .edge-section { margin-top: 24px; }
+    .edge-section { margin-top: 4px; border-top: 1px solid var(--border); padding-top: 16px; }
     .edge-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
     .edge-in {
-      width: 90px; background: var(--bg-input);
+      width: 110px; background: var(--bg-input);
       border: 1px solid var(--border-hi); border-bottom: 2px solid var(--green);
-      color: var(--green); font-family: var(--font);
+      color: var(--green);
       font-size: 1rem; font-weight: 600; padding: 6px 10px; outline: none;
     }
     .edge-in:focus { border-color: var(--green); }
-    .edge-key { font-size:.62rem; color:var(--text-3); }
+    .edge-in.bad { border-bottom-color: var(--red); color: var(--red); }
+    .edge-key { font-size:.68rem; color:var(--text-3); letter-spacing:.08em; text-transform:uppercase; }
     .edge-val { font-size: .85rem; font-weight: 600; }
     .edge-pos { color: var(--green); }
     .edge-neg { color: var(--red); }
     .edge-neu { color: var(--text-2); }
-    .kelly-val { font-size: .75rem; }
+    .edge-grid {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px; background: var(--border); margin-top: 12px;
+      border: 1px solid var(--border);
+    }
+    .edge-cell { background: var(--bg-raised); padding: 10px 12px; }
+    .edge-cell .m-lbl { margin-bottom: 3px; }
+    .edge-cell .v { font-size: 1.05rem; font-weight: 700; }
+    .edge-cell .s { font-size: .64rem; color: var(--text-3); margin-top: 2px; }
+    .edge-flag {
+      display: inline-block; font-size: .66rem; font-weight: 700; letter-spacing: .14em;
+      padding: 3px 8px; border: 1px solid var(--border-hi); color: var(--text-2);
+    }
+    .edge-flag.yes { color: var(--green); border-color: var(--green-dim); background: rgba(0,204,136,.06); }
+    .edge-flag.no  { color: var(--red);   border-color: var(--red-dim);   background: rgba(255,61,80,.06); }
 
     /* ── METRICS PANEL ───────────────────────── */
-    .metrics { display:flex; flex-direction:column; }
+    .metrics { display:flex; flex-direction:column; background: var(--bg-panel); }
     .m-block {
       padding: 16px 18px;
       border-bottom: 1px solid var(--border);
     }
     .m-block:last-child { border-bottom: none; }
     .m-lbl {
-      font-size:.58rem; letter-spacing:.18em; text-transform:uppercase;
+      font-size:.64rem; letter-spacing:.18em; text-transform:uppercase;
       color: var(--text-4); margin-bottom: 5px;
     }
     .m-val {
       font-size: 2.6rem; font-weight: 700;
       color: var(--orange); line-height: 1;
+      font-variant-numeric: tabular-nums;
     }
-    .m-val.sm { font-size: 1.8rem; color: var(--text); }
+    .m-val.sm { font-size: 1.5rem; color: var(--text); }
     .m-val.md { font-size: 2rem; }
-    .m-sub { font-size: .6rem; color: var(--text-3); margin-top: 4px; }
+    .m-val.gr { color: var(--green); }
+    .m-sub { font-size: .66rem; color: var(--text-3); margin-top: 4px; }
+    .m-alt {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border);
+      font-size: .68rem; color: var(--text-3);
+    }
+    .m-alt b { color: var(--text-2); font-weight: 600; }
+    .m-fair-row { display:flex; gap:14px; flex-wrap:wrap; margin-top:6px; font-size:.68rem; color:var(--text-2); }
+    .m-fair-row b { color: var(--green); }
 
     /* probability bar */
     .prob-bar { margin-top: 10px; }
@@ -270,24 +334,37 @@
     }
     .bar-lbls {
       display: flex; justify-content: space-between;
-      font-size: .55rem; color: var(--text-4); margin-top: 3px;
+      font-size: .68rem; color: var(--text-4); margin-top: 3px;
     }
 
     /* 2-col metrics grid */
     .m-grid-2 {
       display: grid; grid-template-columns: 1fr 1fr;
       gap: 1px; background: var(--border);
+      border-bottom: 1px solid var(--border);
     }
-    .m-cell { background: var(--bg-panel); padding: 14px 16px; }
+    .m-cell { background: var(--bg-panel); padding: 14px 16px; position: relative; }
+    .m-cell.active { box-shadow: inset 3px 0 0 var(--orange); }
+    .m-cell.active .m-lbl { color: var(--orange-dim); }
+    .stake-row { display:flex; align-items:center; gap:8px; }
+    .stake-in {
+      width: 90px; background: var(--bg-input);
+      border: 1px solid var(--border-hi); border-bottom: 2px solid var(--orange-dim);
+      color: var(--text); font-size: 1rem; font-weight: 600;
+      padding: 5px 8px; outline: none; text-align: right;
+    }
+    .stake-in:focus { border-color: var(--orange); }
+    .stake-in.bad { border-bottom-color: var(--red); color: var(--red); }
 
     /* ── TWO-SIDED ───────────────────────────── */
     .two-wrap { background: var(--border); margin-top: 1px; }
     .two-hdr {
       background: #000; padding: 9px 20px;
       border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
     }
     .two-hdr-txt {
-      font-size: .6rem; font-weight: 700; letter-spacing: .2em;
+      font-size: .66rem; font-weight: 700; letter-spacing: .2em;
       text-transform: uppercase; color: var(--text-4);
     }
     .two-grid {
@@ -303,7 +380,7 @@
     .side-odds-in {
       width: 100%; background: var(--bg-input);
       border: 1px solid var(--border-hi); border-left: 3px solid var(--orange-dim);
-      color: var(--text); font-family: var(--font);
+      color: var(--text);
       font-size: 1.55rem; font-weight: 700; padding: 9px 12px; outline: none;
       transition: all .15s;
     }
@@ -315,10 +392,17 @@
       padding: 5px 0; border-bottom: 1px solid var(--border);
     }
     .st-row:last-child { border-bottom:none; }
-    .st-k { font-size:.58rem; text-transform:uppercase; letter-spacing:.12em; color:var(--text-4); }
-    .st-v { font-size:.82rem; font-weight:600; color:var(--text); }
+    .st-k { font-size:.64rem; text-transform:uppercase; letter-spacing:.12em; color:var(--text-4); }
+    .st-v { font-size:.82rem; font-weight:600; color:var(--text); font-variant-numeric: tabular-nums; }
     .st-v.hi { color: var(--orange); }
     .st-v.gr { color: var(--green); }
+    .use-btn {
+      margin-top: 12px; width: 100%;
+      background: transparent; border: 1px dashed var(--border-hi); color: var(--text-3);
+      font-size: .66rem; letter-spacing: .12em; text-transform: uppercase;
+      padding: 6px; cursor: pointer; transition: all .12s;
+    }
+    .use-btn:hover { color: var(--orange); border-color: var(--orange-dim); background: var(--orange-glo); }
 
     /* vig center */
     .vig-center {
@@ -335,7 +419,7 @@
     .vig-meter { width: 100%; }
     .vm-track { height: 5px; background: var(--border-hi); }
     .vm-fill { height: 100%; background: var(--red); transition: width .3s; }
-    .vig-note { font-size:.58rem; color:var(--text-4); text-align:center; line-height:1.7; }
+    .vig-note { font-size:.64rem; color:var(--text-4); text-align:center; line-height:1.7; }
 
     /* ── REFERENCE TABLE ─────────────────────── */
     .ref-wrap {
@@ -343,30 +427,35 @@
       border-top: 1px solid var(--border);
     }
     .ref-title {
-      font-size:.6rem; font-weight:700; letter-spacing:.2em; text-transform:uppercase;
+      font-size:.66rem; font-weight:700; letter-spacing:.2em; text-transform:uppercase;
       color:var(--text-4); margin-bottom:12px;
+      display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;
     }
+    .ref-title span:last-child { font-weight:400; letter-spacing:.05em; text-transform:none; }
+    .ref-scroll { overflow-x: auto; }
     .ref-table {
-      width: 100%; border-collapse: collapse; font-size: .65rem;
+      width: 100%; border-collapse: collapse; font-size: .65rem; min-width: 520px;
     }
     .ref-table th {
       text-align: left; padding: 5px 12px;
-      font-size:.58rem; letter-spacing:.12em; text-transform:uppercase;
+      font-size:.64rem; letter-spacing:.12em; text-transform:uppercase;
       color: var(--text-4); background: var(--bg);
       border-bottom: 1px solid var(--border);
     }
     .ref-table th:not(:first-child) { text-align: right; }
     .ref-table td {
       padding: 5px 12px; border-bottom: 1px solid var(--border);
-      color: var(--text-2);
+      color: var(--text-2); font-variant-numeric: tabular-nums;
     }
     .ref-table td:not(:first-child) { text-align: right; }
     .ref-table tr:last-child td { border-bottom: none; }
-    .ref-table tr:hover td { background: var(--bg-raised); }
+    .ref-table tbody tr { cursor: pointer; }
+    .ref-table tbody tr:hover td { background: var(--bg-raised); }
+    .ref-table tbody tr.on td { background: var(--orange-glo); }
     .ref-table .t-odds { color: var(--orange); font-weight: 600; }
     .ref-table .t-prob { color: var(--text); font-weight: 500; }
     .ref-table .t-price { color: var(--green); }
-    .ref-table .t-cat { color: var(--text-4); font-size: .58rem; }
+    .ref-table .t-cat { color: var(--text-4); font-size: .64rem; text-align: left !important; }
 
     /* ── FOOTER ──────────────────────────────── */
     footer {
@@ -376,9 +465,9 @@
       align-items: center;
     }
     .f-grp { display:flex; flex-direction:column; gap:3px; }
-    .f-key { font-size:.57rem; text-transform:uppercase; letter-spacing:.12em; color:var(--text-4); }
+    .f-key { font-size:.64rem; text-transform:uppercase; letter-spacing:.12em; color:var(--text-4); }
     .f-val { font-size:.65rem; color:var(--orange-dim); font-style:italic; }
-    .f-copy { font-size:.58rem; color:var(--text-4); }
+    .f-copy { font-size:.64rem; color:var(--text-4); }
 
     /* ── CURSOR ──────────────────────────────── */
     .cur {
@@ -387,15 +476,39 @@
     }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 
+    .sr-only {
+      position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+      overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+    }
+
     /* ── RESPONSIVE ──────────────────────────── */
     @media (max-width:920px) {
-      .main-wrap { grid-template-columns: 1fr; }
+      .main-wrap {
+        grid-template-columns: 1fr;
+        grid-template-areas: "input" "metrics" "tools" "edge";
+        grid-template-rows: auto;
+      }
+      .panel-input { padding-bottom: 16px; }
+      .metrics { border-left: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+      .panel-tools { padding-top: 20px; }
       .two-grid { grid-template-columns: 1fr; }
+      .vig-center { flex-direction: row; flex-wrap: wrap; justify-content: space-around; }
+      .vig-meter { order: 3; }
     }
     @media (max-width:600px) {
+      html { font-size: 13px; }
       .hdr-title { display:none; }
+      .hdr-top, .ctrl-bar, .panel, .ref-wrap { padding-left: 12px; padding-right: 12px; }
       .m-val { font-size:2rem; }
-      .m-grid-2 { grid-template-columns: 1fr; }
+      .odds-in { font-size: 1.8rem; padding: 10px 12px; }
+      .edge-grid { grid-template-columns: 1fr; }
+      .link-btn { margin-left: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ticker-scroll { animation: none; }
+      .status-dot, .cur { animation: none; }
+      .bar-fill, .vm-fill { transition: none; }
+      html { scroll-behavior: auto; }
     }
   </style>
 </head>
@@ -407,101 +520,122 @@
     <div class="logo">ODDS<span>|</span>CALC</div>
     <div class="hdr-title">MONEYLINE PROBABILITY ENGINE — PREDICTION MARKET ANALYTICS</div>
     <div class="hdr-right">
-      <span class="status-dot"></span>
-      <span id="clock">--:--:--</span>
+      <span class="status-dot" aria-hidden="true"></span>
+      <span id="clock" aria-label="Pacific time">--:--:--</span>
     </div>
   </div>
-  <div class="ticker-wrap">
-    <div class="ticker-scroll" id="ticker"></div>
+  <div class="ticker-wrap" title="Click a line to load it">
+    <div class="ticker-scroll" id="ticker" aria-hidden="true"></div>
   </div>
 </header>
 
 <!-- ░░ CONTROLS ░░ -->
 <div class="ctrl-bar">
-  <div class="tgl-group">
-    <button class="tgl-btn on" id="btn-sb" onclick="setView('sb')">SPORTSBOOK</button>
-    <button class="tgl-btn" id="btn-pm" onclick="setView('pm')">PRED&nbsp;MARKET</button>
+  <div class="tgl-group" role="group" aria-label="Result view">
+    <button class="tgl-btn on" id="btn-sb" aria-pressed="true" onclick="setView('sb')">SPORTSBOOK</button>
+    <button class="tgl-btn" id="btn-pm" aria-pressed="false" onclick="setView('pm')">PRED&nbsp;MARKET</button>
   </div>
   <div class="ctrl-sep"></div>
-  <label class="vig-row" title="Remove bookmaker margin from probability">
+  <label class="vig-row" title="Show fair (no-vig) probability instead of raw implied probability">
     <span class="vig-lbl">NO-VIG</span>
     <div class="sw">
       <input type="checkbox" id="vig-sw" onchange="onVigToggle()">
       <span class="sw-track"></span>
     </div>
   </label>
+  <div class="mini-field" title="Assumed bookmaker vig (overround − 100%) used to de-vig a single line. A -110/-110 market is 4.76%.">
+    <label class="vig-lbl" for="hold-in">VIG</label>
+    <input class="mini-in" id="hold-in" type="text" inputmode="decimal" value="4.76"
+      oninput="onHoldInput()" autocomplete="off" aria-label="Assumed book vig percent">
+    <span class="mini-unit">%</span>
+  </div>
   <div class="ctrl-sep"></div>
-  <span class="hint">↑ ↓ ARROW KEYS ADJUST ODDS BY 5</span>
+  <span class="hint">↑ ↓ STEP &nbsp;·&nbsp; SHIFT+↑ ↓ ×5</span>
+  <button class="link-btn" id="copy-btn" onclick="copyLink()" title="Copy a link that restores these inputs">COPY LINK</button>
 </div>
 
 <!-- ░░ MAIN GRID ░░ -->
 <div class="main-wrap">
 
-  <!-- LEFT: CALCULATOR -->
-  <div class="panel">
-    <div class="p-title">SINGLE LINE CALCULATOR</div>
+  <!-- LEFT: INPUT -->
+  <div class="panel panel-input">
+    <div class="p-title">
+      <span>SINGLE LINE CALCULATOR</span>
+      <div class="tgl-group sm" role="group" aria-label="Input format">
+        <button class="tgl-btn on" data-mode="amer"  aria-pressed="true"  onclick="setMode('amer')">AMERICAN</button>
+        <button class="tgl-btn"    data-mode="dec"   aria-pressed="false" onclick="setMode('dec')">DECIMAL</button>
+        <button class="tgl-btn"    data-mode="prob"  aria-pressed="false" onclick="setMode('prob')">PROB %</button>
+        <button class="tgl-btn"    data-mode="price" aria-pressed="false" onclick="setMode('price')">PRICE ¢</button>
+      </div>
+    </div>
 
     <div style="margin-bottom:20px">
-      <div class="f-lbl">AMERICAN ODDS</div>
-      <input class="odds-in" id="s-in" type="text" value="+150"
-        placeholder="+150 or -200"
-        oninput="onSingleInput()" onkeydown="onSingleKey(event)"
-        autocomplete="off" spellcheck="false">
-      <div class="in-err" id="s-err"></div>
+      <label class="f-lbl" id="s-lbl" for="s-in">AMERICAN ODDS</label>
+      <div class="in-row">
+        <input class="odds-in" id="s-in" type="text" value="+150"
+          placeholder="+150 or -200"
+          autocomplete="off" spellcheck="false">
+        <span class="in-unit" id="s-unit" aria-hidden="true"></span>
+      </div>
+      <div class="in-err" id="s-err" role="alert" aria-live="polite"></div>
       <div style="margin-top:6px">
         <span class="profile-badge" id="s-profile">MODERATE UNDERDOG</span>
       </div>
     </div>
+  </div>
 
+  <!-- LEFT: SLIDER + QUICK PICKS -->
+  <div class="panel panel-tools">
     <div class="sld-wrap">
       <div class="f-lbl">SLIDER ADJUSTMENT</div>
       <div class="sld-lbls">
         <span>-1000</span>
-        <span class="sld-mid">◄ FAVORITE &nbsp;|&nbsp; UNDERDOG ►</span>
+        <span class="sld-mid">◄ FAVORITE &nbsp;|&nbsp; EVEN &nbsp;|&nbsp; UNDERDOG ►</span>
         <span>+1000</span>
       </div>
-      <input type="range" id="s-sld" min="-1000" max="999" step="1" value="149"
-        oninput="onSingleSlider()">
+      <input type="range" id="s-sld" min="-900" max="900" step="1" value="50"
+        aria-label="American odds slider">
       <div class="sld-cur" id="s-sld-lbl">+150</div>
     </div>
 
     <div class="picks">
       <div class="f-lbl">QUICK PICKS</div>
-      <div class="picks-grid" id="picks-grid">
-        <button class="pk" onclick="setOdds(-500)">-500</button>
-        <button class="pk" onclick="setOdds(-350)">-350</button>
-        <button class="pk" onclick="setOdds(-200)">-200</button>
-        <button class="pk" onclick="setOdds(-150)">-150</button>
-        <button class="pk" onclick="setOdds(-120)">-120</button>
-        <button class="pk" onclick="setOdds(-110)">-110</button>
-        <button class="pk" onclick="setOdds(100)">+100</button>
-        <button class="pk" onclick="setOdds(110)">+110</button>
-        <button class="pk" onclick="setOdds(120)">+120</button>
-        <button class="pk on" onclick="setOdds(150)">+150</button>
-        <button class="pk" onclick="setOdds(200)">+200</button>
-        <button class="pk" onclick="setOdds(350)">+350</button>
-      </div>
+      <div class="picks-grid" id="picks-grid"></div>
     </div>
+  </div>
 
-    <!-- EDGE CALCULATOR -->
+  <!-- LEFT: EDGE CALCULATOR -->
+  <div class="panel panel-edge">
     <div class="edge-section">
       <div class="f-lbl">PREDICTION MARKET EDGE CALCULATOR</div>
-      <div style="font-size:.58rem;color:var(--text-4);margin-bottom:6px">
-        Enter current market price (0–1) to see edge vs implied probability
+      <div style="font-size:.64rem;color:var(--text-4);margin-bottom:6px">
+        Enter the market's YES price (0.62, 62¢ or 62%). Edge is measured against the
+        <b>fair</b> (no-vig) probability of the line above, so the book's margin never counts as edge.
       </div>
       <div class="edge-row">
-        <span class="edge-key">PM PRICE</span>
-        <input class="edge-in" id="pm-in" type="text" placeholder="0.500"
+        <label class="edge-key" for="pm-in">YES PRICE</label>
+        <input class="edge-in" id="pm-in" type="text" inputmode="decimal" placeholder="0.62 / 62¢"
           oninput="calcEdge()" autocomplete="off">
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <div class="edge-row" style="margin-top:0">
-            <span class="edge-key">EDGE</span>
-            <span class="edge-val edge-neu" id="edge-out">—</span>
-          </div>
-          <div class="edge-row" style="margin-top:0">
-            <span class="edge-key">KELLY&nbsp;%</span>
-            <span class="kelly-val edge-neu" id="kelly-out">—</span>
-          </div>
+        <span class="edge-key">FAIR</span>
+        <span class="edge-val edge-neu" id="edge-fair">—</span>
+        <span class="edge-flag" id="edge-flag">ENTER A PRICE</span>
+      </div>
+      <div class="in-err" id="pm-err" role="alert" aria-live="polite"></div>
+      <div class="edge-grid">
+        <div class="edge-cell">
+          <div class="m-lbl">EDGE</div>
+          <div class="v edge-neu" id="edge-out">—</div>
+          <div class="s">fair − price, in points</div>
+        </div>
+        <div class="edge-cell">
+          <div class="m-lbl">EV / $1</div>
+          <div class="v edge-neu" id="ev-out">—</div>
+          <div class="s" id="ev-note">expected return on the better side</div>
+        </div>
+        <div class="edge-cell">
+          <div class="m-lbl">KELLY</div>
+          <div class="v edge-neu" id="kelly-out">—</div>
+          <div class="s" id="kelly-note">full-Kelly fraction of bankroll</div>
         </div>
       </div>
     </div>
@@ -510,7 +644,7 @@
   <!-- RIGHT: METRICS -->
   <div class="metrics">
     <div class="m-block">
-      <div class="m-lbl">IMPLIED PROBABILITY <span class="cur"></span></div>
+      <div class="m-lbl" id="s-prob-lbl">IMPLIED PROBABILITY <span class="cur" aria-hidden="true"></span></div>
       <div class="m-val" id="s-prob">40.00%</div>
       <div class="prob-bar">
         <div class="bar-track">
@@ -520,48 +654,81 @@
           <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
         </div>
       </div>
-      <div class="m-sub" id="s-prob-note">Includes bookmaker margin</div>
+      <div class="m-sub" id="s-prob-note">Raw — includes bookmaker margin</div>
+      <div class="m-alt" id="s-alt"></div>
     </div>
 
-    <div class="m-block" id="fair-block" style="display:none">
-      <div class="m-lbl">FAIR PROBABILITY (NO-VIG)</div>
-      <div class="m-val md" id="s-fair" style="color:var(--green)">—</div>
-      <div class="m-sub">Single-line estimate (use 2-sided for full vig removal)</div>
+    <div class="m-block" id="fair-block" hidden>
+      <div class="m-lbl">FAIR LINE (NO-VIG)</div>
+      <div class="m-val md gr" id="s-fair">—</div>
+      <div class="m-fair-row">
+        <span>AMER <b id="s-fair-amer">—</b></span>
+        <span>DEC <b id="s-fair-dec">—</b></span>
+        <span>PRICE <b id="s-fair-price">—</b></span>
+      </div>
+      <div class="m-sub" id="s-fair-note"></div>
+    </div>
+
+    <!-- CONVERSIONS (always visible) -->
+    <div class="m-grid-2" id="conv-grid">
+      <div class="m-cell" data-mode="amer">
+        <div class="m-lbl">AMERICAN</div>
+        <div class="m-val sm" id="s-amer">+150</div>
+        <div class="m-sub">Moneyline</div>
+      </div>
+      <div class="m-cell" data-mode="dec">
+        <div class="m-lbl">DECIMAL</div>
+        <div class="m-val sm" id="s-dec">2.500</div>
+        <div class="m-sub">Per $1 risked</div>
+      </div>
+      <div class="m-cell" data-mode="frac">
+        <div class="m-lbl">FRACTIONAL</div>
+        <div class="m-val sm" id="s-frac">3/2</div>
+        <div class="m-sub">Traditional</div>
+      </div>
+      <div class="m-cell" data-mode="price">
+        <div class="m-lbl">PM PRICE</div>
+        <div class="m-val sm" id="s-pm-price">0.4000</div>
+        <div class="m-sub" id="s-pm-price-note">Per $1 contract · 40¢</div>
+      </div>
+    </div>
+
+    <div class="m-block">
+      <div class="stake-row">
+        <label class="m-lbl" for="stake-in" style="margin:0">STAKE $</label>
+        <input class="stake-in" id="stake-in" type="text" inputmode="decimal" value="100"
+          oninput="onStakeInput()" autocomplete="off">
+      </div>
     </div>
 
     <!-- SPORTSBOOK VIEW -->
     <div id="view-sb">
-      <div class="m-grid-2">
-        <div class="m-cell">
-          <div class="m-lbl">DECIMAL ODDS</div>
-          <div class="m-val sm" id="s-dec">2.500x</div>
-          <div class="m-sub">Per $1 risked</div>
-        </div>
-        <div class="m-cell">
-          <div class="m-lbl">FRACTIONAL</div>
-          <div class="m-val sm" id="s-frac">3/2</div>
-          <div class="m-sub">Traditional</div>
-        </div>
-      </div>
       <div class="m-block">
-        <div class="m-lbl">$100 BET RETURNS</div>
+        <div class="m-lbl" id="s-payout-lbl">$100 BET RETURNS</div>
         <div class="m-val sm" id="s-payout">$250.00</div>
         <div class="m-sub" id="s-payout-note">Profit: $150.00</div>
       </div>
     </div>
 
     <!-- PM VIEW -->
-    <div id="view-pm" style="display:none">
-      <div class="m-block">
-        <div class="m-lbl">CONTRACT PRICE</div>
-        <div class="m-val" id="s-pm-price">0.4000</div>
-        <div class="m-sub">Per $1 face-value contract</div>
+    <div id="view-pm" hidden>
+      <div class="m-grid-2">
+        <div class="m-cell">
+          <div class="m-lbl">CONTRACTS</div>
+          <div class="m-val sm" id="s-contracts">250.0</div>
+          <div class="m-sub" id="s-contracts-note">$100 buys at 40¢</div>
+        </div>
+        <div class="m-cell">
+          <div class="m-lbl">PAYOUT IF WIN</div>
+          <div class="m-val sm" id="s-pm-payout">$250.00</div>
+          <div class="m-sub" id="s-pm-profit">Profit: $150.00</div>
+        </div>
       </div>
       <div class="m-grid-2">
         <div class="m-cell">
           <div class="m-lbl">BREAKEVEN</div>
           <div class="m-val sm" id="s-be">40.00%</div>
-          <div class="m-sub">Min win rate</div>
+          <div class="m-sub">Min win rate to profit</div>
         </div>
         <div class="m-cell">
           <div class="m-lbl">PAYOUT MULT</div>
@@ -577,6 +744,7 @@
 <div class="two-wrap">
   <div class="two-hdr">
     <span class="two-hdr-txt">TWO-SIDED MARKET ANALYSIS — HEAD-TO-HEAD MATCHUP</span>
+    <span class="hint">Enter both sides of a book's line to measure its actual vig</span>
   </div>
   <div class="two-grid">
 
@@ -584,15 +752,13 @@
     <div class="side-panel">
       <div class="side-hdr">
         <span class="side-lbl">SIDE A</span>
-        <span style="font-size:.58rem;color:var(--text-4)">TEAM / PLAYER A</span>
+        <span style="font-size:.64rem;color:var(--text-4)">TEAM / PLAYER A</span>
       </div>
-      <div class="f-lbl">AMERICAN ODDS</div>
-      <input class="side-odds-in" id="a-in" type="text" value="-110"
-        oninput="onSideInput('a')" onkeydown="onSideKey(event,'a')" autocomplete="off">
-      <div class="in-err" id="a-err"></div>
+      <label class="f-lbl" for="a-in">AMERICAN ODDS</label>
+      <input class="side-odds-in" id="a-in" type="text" value="-110" autocomplete="off" spellcheck="false">
+      <div class="in-err" id="a-err" role="alert" aria-live="polite"></div>
       <div style="margin-top:6px">
-        <input type="range" id="a-sld" min="-1000" max="999" step="1" value="-111"
-          oninput="onSideSlider('a')">
+        <input type="range" id="a-sld" min="-900" max="900" step="1" value="-10" aria-label="Side A odds slider">
         <div class="sld-cur" id="a-sld-lbl">-110</div>
       </div>
       <div class="stat-tbl">
@@ -605,6 +771,10 @@
           <span class="st-v gr" id="a-fair">50.00%</span>
         </div>
         <div class="st-row">
+          <span class="st-k">FAIR LINE</span>
+          <span class="st-v" id="a-fair-amer">+100</span>
+        </div>
+        <div class="st-row">
           <span class="st-k">PM PRICE</span>
           <span class="st-v" id="a-pm">0.5238</span>
         </div>
@@ -613,12 +783,13 @@
           <span class="st-v" id="a-dec">1.909x</span>
         </div>
       </div>
+      <button class="use-btn" onclick="useSide('a')" title="Load this side into the single-line calculator using the measured vig">↑ USE IN EDGE CALC</button>
     </div>
 
     <!-- VIG CENTER -->
     <div class="vig-center">
       <div class="vig-item">
-        <div class="m-lbl" style="text-align:center">OVERROUND</div>
+        <div class="m-lbl" style="text-align:center" title="Sum of both implied probabilities">OVERROUND</div>
         <div class="ovr-val" id="ovr-val">104.76%</div>
       </div>
       <div class="vig-meter">
@@ -627,13 +798,13 @@
         </div>
       </div>
       <div class="vig-item">
-        <div class="m-lbl" style="text-align:center">BOOK VIG</div>
+        <div class="m-lbl" style="text-align:center" title="Overround − 100%">BOOK VIG</div>
         <div class="vig-val vig-ok" id="vig-val">4.76%</div>
       </div>
       <div class="vig-note">
         SHARP LINE: &lt;3%<br>
         STANDARD: 3–6%<br>
-        SOFT BOOK: &gt;8%
+        SOFT BOOK: &gt;6%
       </div>
     </div>
 
@@ -641,15 +812,13 @@
     <div class="side-panel">
       <div class="side-hdr">
         <span class="side-lbl">SIDE B</span>
-        <span style="font-size:.58rem;color:var(--text-4)">TEAM / PLAYER B</span>
+        <span style="font-size:.64rem;color:var(--text-4)">TEAM / PLAYER B</span>
       </div>
-      <div class="f-lbl">AMERICAN ODDS</div>
-      <input class="side-odds-in" id="b-in" type="text" value="-110"
-        oninput="onSideInput('b')" onkeydown="onSideKey(event,'b')" autocomplete="off">
-      <div class="in-err" id="b-err"></div>
+      <label class="f-lbl" for="b-in">AMERICAN ODDS</label>
+      <input class="side-odds-in" id="b-in" type="text" value="-110" autocomplete="off" spellcheck="false">
+      <div class="in-err" id="b-err" role="alert" aria-live="polite"></div>
       <div style="margin-top:6px">
-        <input type="range" id="b-sld" min="-1000" max="999" step="1" value="-111"
-          oninput="onSideSlider('b')">
+        <input type="range" id="b-sld" min="-900" max="900" step="1" value="-10" aria-label="Side B odds slider">
         <div class="sld-cur" id="b-sld-lbl">-110</div>
       </div>
       <div class="stat-tbl">
@@ -662,6 +831,10 @@
           <span class="st-v gr" id="b-fair">50.00%</span>
         </div>
         <div class="st-row">
+          <span class="st-k">FAIR LINE</span>
+          <span class="st-v" id="b-fair-amer">+100</span>
+        </div>
+        <div class="st-row">
           <span class="st-k">PM PRICE</span>
           <span class="st-v" id="b-pm">0.5238</span>
         </div>
@@ -670,6 +843,7 @@
           <span class="st-v" id="b-dec">1.909x</span>
         </div>
       </div>
+      <button class="use-btn" onclick="useSide('b')" title="Load this side into the single-line calculator using the measured vig">↑ USE IN EDGE CALC</button>
     </div>
 
   </div>
@@ -677,19 +851,25 @@
 
 <!-- ░░ REFERENCE TABLE ░░ -->
 <div class="ref-wrap">
-  <div class="ref-title">ODDS / PROBABILITY REFERENCE TABLE</div>
-  <table class="ref-table">
-    <thead>
-      <tr>
-        <th>AMERICAN</th>
-        <th>IMPLIED %</th>
-        <th>PM PRICE</th>
-        <th>DECIMAL</th>
-        <th>CATEGORY</th>
-      </tr>
-    </thead>
-    <tbody id="ref-tbody"></tbody>
-  </table>
+  <div class="ref-title">
+    <span>ODDS / PROBABILITY REFERENCE TABLE</span>
+    <span>Click a row to load it</span>
+  </div>
+  <div class="ref-scroll">
+    <table class="ref-table">
+      <thead>
+        <tr>
+          <th>AMERICAN</th>
+          <th>IMPLIED %</th>
+          <th>PM PRICE</th>
+          <th>DECIMAL</th>
+          <th>FRACTIONAL</th>
+          <th style="text-align:left">CATEGORY</th>
+        </tr>
+      </thead>
+      <tbody id="ref-tbody"></tbody>
+    </table>
+  </div>
 </div>
 
 <!-- ░░ FOOTER ░░ -->
@@ -703,369 +883,448 @@
     <div class="f-val">P = |odds| / (|odds| + 100)</div>
   </div>
   <div class="f-grp">
-    <div class="f-key">NO-VIG FAIR PROB</div>
+    <div class="f-key">NO-VIG (2-SIDED)</div>
     <div class="f-val">P_fair = P_raw / Σ(P_all)</div>
+  </div>
+  <div class="f-grp">
+    <div class="f-key">NO-VIG (1-SIDED)</div>
+    <div class="f-val">P_fair = P_raw / (1 + vig)</div>
   </div>
   <div class="f-grp">
     <div class="f-key">BOOK VIG</div>
     <div class="f-val">VIG% = Σ(P_implied) − 100%</div>
   </div>
   <div class="f-grp">
-    <div class="f-key">KELLY CRITERION</div>
-    <div class="f-val">f* = (V − P) / (1 − P)</div>
+    <div class="f-key">KELLY (YES / NO)</div>
+    <div class="f-val">f* = (P_fair − price) / (1 − price) &nbsp;·&nbsp; (price − P_fair) / price</div>
   </div>
-  <div class="f-copy">ODDS|CALC v1.0 — Moneyline Probability Engine</div>
+  <div class="f-copy">ODDS|CALC v1.1 — Moneyline Probability Engine</div>
 </footer>
 
+<script src="odds.js"></script>
 <script>
-  // ── STATE ───────────────────────────────────────────
-  const S = { single: 150, sideA: -110, sideB: -110, view: 'sb', noVig: false };
+(function () {
+  'use strict';
+  const O = window.Odds;
+  const $ = id => document.getElementById(id);
 
-  // ── CLOCK ────────────────────────────────────────────
-  function tick() {
-    const now = new Date();
-    const h = String(now.getHours()).padStart(2,'0');
-    const m = String(now.getMinutes()).padStart(2,'0');
-    const s = String(now.getSeconds()).padStart(2,'0');
-    document.getElementById('clock').textContent = `${h}:${m}:${s} EST`;
+  // ── STATE ───────────────────────────────────────────
+  // `p` (probability) is canonical; `amer` is kept alongside so an American
+  // line the user typed is preserved exactly rather than re-derived.
+  const S = {
+    p: O.impliedProb(150), amer: 150,
+    mode: 'amer',            // amer | dec | prob | price
+    view: 'sb', noVig: false,
+    hold: 220 / 210 - 1,     // assumed book vig (overround − 1) for single-line de-vig; -110/-110
+    stake: 100,
+    sideA: -110, sideB: -110,
+  };
+  function setAmer(a)  { S.amer = a; S.p = O.impliedProb(a); }
+  function setProb(p)  { S.p = p; S.amer = O.probToAmerican(p); }
+  function fairProb()  { return O.fairFromHold(S.p, S.hold); }
+
+  // ── INPUT MODES ─────────────────────────────────────
+  const MODES = {
+    amer:  { label: 'AMERICAN ODDS', unit: '', placeholder: '+150 or -200', inputmode: 'text',
+             parse: O.parseAmerican,
+             get: () => S.amer, set: v => setAmer(v),
+             fmt: v => O.formatAmerican(v),
+             step: (v, d) => O.stepAmerican(v, 5 * d) },
+    dec:   { label: 'DECIMAL ODDS', unit: 'x', placeholder: '2.50', inputmode: 'decimal',
+             parse: O.parseDecimal,
+             get: () => O.probToDecimal(S.p), set: v => setProb(O.decimalToProb(v)),
+             fmt: v => v.toFixed(3),
+             step: (v, d) => clamp(v + 0.01 * d, 1.01, 101) },
+    prob:  { label: 'WIN PROBABILITY', unit: '%', placeholder: '62.5', inputmode: 'decimal',
+             parse: O.parseProbPct,
+             get: () => S.p, set: v => setProb(v),
+             fmt: v => O.trimNum(v * 100, 2),
+             step: (v, d) => clamp(v + 0.005 * d, 0.01, 0.99) },
+    price: { label: 'CONTRACT PRICE', unit: '$', placeholder: '0.62 or 62¢', inputmode: 'decimal',
+             parse: O.parsePrice,
+             get: () => S.p, set: v => setProb(v),
+             fmt: v => O.trimNum(v, 4),
+             step: (v, d) => clamp(v + 0.01 * d, 0.01, 0.99) },
+  };
+  function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
+
+  // ── SHARED ODDS FIELD ───────────────────────────────
+  // One component drives the single-line input and both two-sided inputs:
+  // text parsing + validation, arrow-key stepping, slider sync, and error UI.
+  function oddsField(cfg) {
+    const input = $(cfg.input), err = $(cfg.err);
+    const sld = cfg.slider ? $(cfg.slider) : null;
+    const sldLbl = cfg.sliderLbl ? $(cfg.sliderLbl) : null;
+
+    function showErr(msg) { input.classList.toggle('bad', !!msg); err.textContent = msg || ''; }
+    function syncSlider() {
+      if (!sld) return;
+      const a = cfg.getAmer();
+      sld.value = clamp(O.americanToLinear(a), +sld.min, +sld.max);
+      sldLbl.textContent = O.formatAmerican(a);
+    }
+    function reflect() {               // rewrite the field from state
+      input.value = cfg.fmt(cfg.get());
+      showErr('');
+      syncSlider();
+      cfg.onChange();
+    }
+    input.addEventListener('input', () => {
+      const r = cfg.parse(input.value);
+      if (r.partial) { showErr(''); return; }
+      if (r.err)     { showErr(r.err); return; }
+      showErr('');
+      cfg.set(r.val);
+      syncSlider();
+      cfg.onChange();
+    });
+    input.addEventListener('keydown', e => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      e.preventDefault();
+      const dir = (e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 5 : 1);
+      cfg.set(cfg.step(cfg.get(), dir));
+      reflect();
+    });
+    input.addEventListener('blur', () => {   // tidy formatting once the user leaves
+      const r = cfg.parse(input.value);
+      if (r.val !== undefined) input.value = cfg.fmt(cfg.get());
+    });
+    if (sld) sld.addEventListener('input', () => {
+      cfg.setAmer(O.linearToAmerican(+sld.value));
+      reflect();
+    });
+    return {
+      setAmer(a) { cfg.setAmer(a); reflect(); },
+      set(v)     { cfg.set(v); reflect(); },
+      refresh()  { reflect(); },
+      syncSlider,
+    };
   }
+
+  const single = oddsField({
+    input: 's-in', err: 's-err', slider: 's-sld', sliderLbl: 's-sld-lbl',
+    parse:   s => MODES[S.mode].parse(s),
+    get:     () => MODES[S.mode].get(),
+    set:     v => MODES[S.mode].set(v),
+    fmt:     v => MODES[S.mode].fmt(v),
+    step:    (v, d) => MODES[S.mode].step(v, d),
+    getAmer: () => S.amer,
+    setAmer: a => setAmer(a),
+    onChange: () => { renderSingle(); saveHash(); },
+  });
+  const sideField = key => oddsField({
+    input: key + '-in', err: key + '-err', slider: key + '-sld', sliderLbl: key + '-sld-lbl',
+    parse: O.parseAmerican,
+    get:     () => S[key === 'a' ? 'sideA' : 'sideB'],
+    set:     v => { S[key === 'a' ? 'sideA' : 'sideB'] = v; },
+    fmt:     O.formatAmerican,
+    step:    (v, d) => O.stepAmerican(v, 5 * d),
+    getAmer: () => S[key === 'a' ? 'sideA' : 'sideB'],
+    setAmer: v => { S[key === 'a' ? 'sideA' : 'sideB'] = v; },
+    onChange: () => { renderTwoSided(); saveHash(); },
+  });
+  const sideA = sideField('a'), sideB = sideField('b');
+
+  // ── MODE SWITCH ─────────────────────────────────────
+  function setMode(m) {
+    S.mode = m;
+    const cfg = MODES[m];
+    $('s-lbl').textContent = cfg.label;
+    $('s-unit').textContent = cfg.unit;
+    $('s-in').placeholder = cfg.placeholder;
+    $('s-in').setAttribute('inputmode', cfg.inputmode);
+    document.querySelectorAll('[data-mode]').forEach(el => {
+      const on = el.dataset.mode === m;
+      if (el.tagName === 'BUTTON') { el.classList.toggle('on', on); el.setAttribute('aria-pressed', on); }
+      else el.classList.toggle('active', on);
+    });
+    single.refresh();
+  }
+
+  // ── QUICK PICKS / REFERENCE ─────────────────────────
+  const PICKS = [-500, -350, -200, -150, -120, -110, 100, 110, 120, 150, 200, 350];
+  $('picks-grid').innerHTML = PICKS.map(o =>
+    `<button class="pk" data-odds="${o}" onclick="setOdds(${o})">${O.formatAmerican(o)}</button>`).join('');
+
+  const REF_ODDS = [-1000, -500, -300, -200, -150, -130, -120, -110, 100, 110, 120, 130, 150, 200, 300, 500, 1000];
+  $('ref-tbody').innerHTML = REF_ODDS.map(o => {
+    const p = O.impliedProb(o);
+    return `<tr data-odds="${o}" onclick="setOdds(${o})" title="Load ${O.formatAmerican(o)}">
+      <td class="t-odds">${O.formatAmerican(o)}</td>
+      <td class="t-prob">${(p * 100).toFixed(2)}%</td>
+      <td class="t-price">${p.toFixed(4)}</td>
+      <td>${O.toDecimal(o).toFixed(3)}x</td>
+      <td>${O.fractional(o)}</td>
+      <td class="t-cat">${O.profile(o)}</td>
+    </tr>`;
+  }).join('');
+
+  function setOdds(o) {
+    if (S.mode !== 'amer') setMode('amer');
+    single.setAmer(o);
+  }
+  function useSide(key) {
+    const oA = S.sideA, oB = S.sideB;
+    const hold = O.overround([O.impliedProb(oA), O.impliedProb(oB)]) - 1;
+    S.hold = hold;
+    $('hold-in').value = O.trimNum(hold * 100, 2);
+    $('hold-in').classList.remove('bad');
+    setOdds(key === 'a' ? oA : oB);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    $('pm-in').focus({ preventScroll: true });
+  }
+
+  // ── RENDER: SINGLE ──────────────────────────────────
+  const pct = x => (x * 100).toFixed(2) + '%';
+  const usd = x => '$' + x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  function renderSingle() {
+    const p = S.p, a = S.amer, dec = O.probToDecimal(p);
+    const fair = fairProb();
+    const holdPct = O.trimNum(S.hold * 100, 2);
+    const shown = S.noVig ? fair : p;
+    const amerDisp = O.formatAmerican(a);
+    const approx = S.mode !== 'amer' && Math.abs(a - Math.round(a)) > 1e-9 ? '≈' : '';
+
+    // Headline probability
+    $('s-prob-lbl').firstChild.textContent = (S.noVig ? 'FAIR PROBABILITY ' : 'IMPLIED PROBABILITY ');
+    $('s-prob').textContent = pct(shown);
+    $('s-bar').style.width = (shown * 100).toFixed(2) + '%';
+    $('s-profile').textContent = O.profile(Math.round(a));
+    $('s-prob-note').textContent = S.noVig
+      ? `De-vigged assuming ${holdPct}% vig (proportional method)`
+      : 'Raw — includes bookmaker margin';
+    $('s-alt').innerHTML = S.noVig
+      ? `<span>RAW IMPLIED</span><b>${pct(p)}</b>`
+      : `<span>FAIR @ ${holdPct}% VIG</span><b>${pct(fair)}</b>`;
+
+    // Fair line block
+    const fb = $('fair-block');
+    fb.hidden = !S.noVig;
+    if (S.noVig) {
+      $('s-fair').textContent = pct(fair);
+      $('s-fair-amer').textContent = O.formatAmerican(O.probToAmerican(fair));
+      $('s-fair-dec').textContent = O.probToDecimal(fair).toFixed(3);
+      $('s-fair-price').textContent = fair.toFixed(4);
+      $('s-fair-note').textContent = 'What the line would be with the margin removed';
+    }
+
+    // Conversions (raw line, every format)
+    $('s-amer').textContent = approx + amerDisp;
+    $('s-dec').textContent = dec.toFixed(3);
+    $('s-frac').textContent = O.fractionalFromProb(p);
+    $('s-pm-price').textContent = p.toFixed(4);
+    $('s-pm-price-note').textContent = `Per $1 contract · ${O.trimNum(p * 100, 1)}¢`;
+
+    // Sportsbook view
+    const st = S.stake;
+    $('s-payout-lbl').textContent = `${usd(st)} BET RETURNS`;
+    $('s-payout').textContent = usd(st * dec);
+    $('s-payout-note').textContent = 'Profit: ' + usd(st * (dec - 1));
+
+    // Prediction-market view
+    const contracts = st / p;
+    $('s-contracts').textContent = contracts.toFixed(1);
+    $('s-contracts-note').textContent = `${usd(st)} buys at ${O.trimNum(p * 100, 1)}¢`;
+    $('s-pm-payout').textContent = usd(contracts);
+    $('s-pm-profit').textContent = 'Profit: ' + usd(contracts - st);
+    $('s-be').textContent = pct(p);
+    $('s-mult').textContent = dec.toFixed(2) + 'x';
+
+    // Highlight matching quick pick / reference row
+    const key = String(Math.round(a) === -100 ? 100 : Math.round(a));
+    const exact = Math.abs(a - Math.round(a)) < 1e-9;
+    document.querySelectorAll('[data-odds]').forEach(el =>
+      el.classList.toggle('on', exact && el.dataset.odds === key));
+
+    calcEdge();
+  }
+
+  // ── EDGE + KELLY ────────────────────────────────────
+  function calcEdge() {
+    const input = $('pm-in');
+    const r = O.parsePrice(input.value);
+    const fair = fairProb();
+    const flag = $('edge-flag');
+    const set = (id, txt, cls) => { const el = $(id); el.textContent = txt; el.className = el.className.replace(/edge-(pos|neg|neu)/, cls); };
+    $('edge-fair').textContent = pct(fair);
+
+    if (r.partial || r.err) {
+      input.classList.toggle('bad', !!r.err);
+      $('pm-err').textContent = r.err || '';
+      set('edge-out', '—', 'edge-neu'); set('ev-out', '—', 'edge-neu'); set('kelly-out', '—', 'edge-neu');
+      $('ev-note').textContent = 'expected return on the better side';
+      $('kelly-note').textContent = 'full-Kelly fraction of bankroll';
+      flag.textContent = r.err ? 'INVALID PRICE' : 'ENTER A PRICE';
+      flag.className = 'edge-flag';
+      return;
+    }
+    input.classList.remove('bad');
+    $('pm-err').textContent = '';
+    const price = r.val;
+    const edge = (fair - price) * 100;
+    const buyYes = edge > 0.5, buyNo = edge < -0.5;
+    const cls = buyYes ? 'edge-pos' : buyNo ? 'edge-neg' : 'edge-neu';
+    const sign = v => (v >= 0 ? '+' : '') + v.toFixed(2);
+
+    set('edge-out', `${sign(edge)} pts`, cls);
+    if (buyYes) {
+      set('ev-out', sign(O.evYes(fair, price) * 100) + '%', 'edge-pos');
+      $('ev-note').textContent = `buying YES at ${O.trimNum(price * 100, 1)}¢`;
+      set('kelly-out', (O.kellyYes(fair, price) * 100).toFixed(1) + '%', 'edge-pos');
+      $('kelly-note').textContent = 'of bankroll on YES (full Kelly)';
+      flag.textContent = 'BUY YES'; flag.className = 'edge-flag yes';
+    } else if (buyNo) {
+      set('ev-out', sign(O.evNo(fair, price) * 100) + '%', 'edge-neg');
+      $('ev-note').textContent = `buying NO at ${O.trimNum((1 - price) * 100, 1)}¢`;
+      set('kelly-out', (O.kellyNo(fair, price) * 100).toFixed(1) + '%', 'edge-neg');
+      $('kelly-note').textContent = 'of bankroll on NO (full Kelly)';
+      flag.textContent = 'BUY NO'; flag.className = 'edge-flag no';
+    } else {
+      set('ev-out', sign(O.evYes(fair, price) * 100) + '%', 'edge-neu');
+      $('ev-note').textContent = 'on YES — inside the noise';
+      set('kelly-out', '0.0%', 'edge-neu');
+      $('kelly-note').textContent = 'no bet — market agrees with the fair line';
+      flag.textContent = 'NO EDGE'; flag.className = 'edge-flag';
+    }
+  }
+
+  // ── CONTROLS ────────────────────────────────────────
+  function setView(v) {
+    S.view = v;
+    ['sb', 'pm'].forEach(k => {
+      $('btn-' + k).classList.toggle('on', v === k);
+      $('btn-' + k).setAttribute('aria-pressed', v === k);
+      $('view-' + k).hidden = v !== k;
+    });
+    saveHash();
+  }
+  function onVigToggle() {
+    S.noVig = $('vig-sw').checked;
+    renderSingle();
+    saveHash();
+  }
+  function onHoldInput() {
+    const el = $('hold-in');
+    const v = parseFloat(el.value);
+    const ok = el.value.trim() !== '' && !isNaN(v) && v >= 0 && v <= 30;
+    el.classList.toggle('bad', !ok);
+    if (!ok) return;
+    S.hold = v / 100;
+    renderSingle();
+    saveHash();
+  }
+  function onStakeInput() {
+    const el = $('stake-in');
+    const v = parseFloat(el.value.replace(/[$,\s]/g, ''));
+    const ok = !isNaN(v) && v > 0 && v <= 1e9;
+    el.classList.toggle('bad', !ok);
+    if (!ok) return;
+    S.stake = v;
+    renderSingle();
+    saveHash();
+  }
+
+  // ── TWO-SIDED ───────────────────────────────────────
+  function renderTwoSided() {
+    const oA = S.sideA, oB = S.sideB;
+    const pA = O.impliedProb(oA), pB = O.impliedProb(oB);
+    const total = O.overround([pA, pB]);
+    const [fairA, fairB] = O.removeVig([pA, pB]);
+    const vig = (total - 1) * 100;
+    const fill = (key, o, p, fair) => {
+      $(key + '-raw').textContent  = pct(p);
+      $(key + '-fair').textContent = pct(fair);
+      $(key + '-fair-amer').textContent = O.formatAmerican(O.probToAmerican(fair));
+      $(key + '-pm').textContent   = p.toFixed(4);
+      $(key + '-dec').textContent  = O.toDecimal(o).toFixed(3) + 'x';
+    };
+    fill('a', oA, pA, fairA);
+    fill('b', oB, pB, fairB);
+    $('ovr-val').textContent = (total * 100).toFixed(2) + '%';
+    const vigEl = $('vig-val');
+    vigEl.textContent = vig.toFixed(2) + '%';
+    vigEl.className = 'vig-val ' + (vig < 3 ? 'vig-lo' : vig <= 6 ? 'vig-ok' : 'vig-hi');
+    $('vig-fill').style.width = clamp((vig / 15) * 100, 0, 100) + '%';
+  }
+
+  // ── URL STATE ───────────────────────────────────────
+  let hashTimer = null;
+  function saveHash() {
+    clearTimeout(hashTimer);
+    hashTimer = setTimeout(() => {
+      const q = new URLSearchParams();
+      q.set('m', S.mode);
+      if (S.mode === 'amer') q.set('a', Math.round(S.amer)); else q.set('p', S.p.toFixed(6));
+      q.set('v', S.view);
+      if (S.noVig) q.set('nv', '1');
+      q.set('h', O.trimNum(S.hold * 100, 2));
+      if (S.stake !== 100) q.set('st', S.stake);
+      const pm = O.parsePrice($('pm-in').value);
+      if (pm.val !== undefined) q.set('pm', O.trimNum(pm.val, 4));
+      q.set('sa', S.sideA); q.set('sb', S.sideB);
+      history.replaceState(null, '', '#' + q.toString());
+    }, 200);
+  }
+  function loadHash() {
+    if (!location.hash || location.hash.length < 2) return;
+    const q = new URLSearchParams(location.hash.slice(1));
+    const num = (k, lo, hi) => { const v = parseFloat(q.get(k)); return isNaN(v) || v < lo || v > hi ? null : v; };
+    if (MODES[q.get('m')]) S.mode = q.get('m');
+    const a = q.get('a') ? O.parseAmerican(q.get('a')) : null;
+    const p = num('p', 0.005, 0.995);
+    if (a && a.val !== undefined) setAmer(a.val); else if (p !== null) setProb(p);
+    if (q.get('v') === 'pm') S.view = 'pm';
+    S.noVig = q.get('nv') === '1';
+    const h = num('h', 0, 30); if (h !== null) S.hold = h / 100;
+    const st = num('st', 0.01, 1e9); if (st !== null) S.stake = st;
+    const sa = O.parseAmerican(q.get('sa') || ''); if (sa.val !== undefined) S.sideA = sa.val;
+    const sb = O.parseAmerican(q.get('sb') || ''); if (sb.val !== undefined) S.sideB = sb.val;
+    if (q.get('pm')) $('pm-in').value = q.get('pm');
+  }
+  function copyLink() {
+    saveHash();
+    const btn = $('copy-btn');
+    const done = ok => {
+      btn.textContent = ok ? 'COPIED' : 'COPY FAILED';
+      btn.classList.toggle('ok', ok);
+      setTimeout(() => { btn.textContent = 'COPY LINK'; btn.classList.remove('ok'); }, 1600);
+    };
+    setTimeout(() => {
+      if (!navigator.clipboard) return done(false);
+      navigator.clipboard.writeText(location.href).then(() => done(true), () => done(false));
+    }, 220);
+  }
+
+  // ── CLOCK + TICKER ──────────────────────────────────
+  function tick() { $('clock').textContent = O.clock(new Date()); }
   setInterval(tick, 1000); tick();
 
-  // ── TICKER ───────────────────────────────────────────
   const TICKS = [
     [-110,'NFL STD'], [-500,'HVY FAV'], [-200,'FAV'], [-150,'MOD FAV'],
     [100,'EVEN'], [110,'DOG'], [150,'MOD DOG'], [200,'UND'],
     [-300,'BIG FAV'], [300,'BIG DOG'], [500,'LONG SHOT'],
     [-120,'SLT FAV'], [120,'SLT DOG'], [-130,'LT FAV'], [130,'LT DOG'],
   ];
-  (function buildTicker() {
-    const items = TICKS.map(([o, l]) => {
-      const sign = o > 0 ? '+' : '';
-      const p = impliedPct(o).toFixed(1);
-      return `<span class="tick-item">
-        <span class="tick-lbl">${l}</span>
-        <span class="tick-odds">${sign}${o}</span>
-        <span class="tick-prob">${p}%</span>
-      </span>`;
-    }).join('');
-    const el = document.getElementById('ticker');
-    el.innerHTML = items + items; // duplicate for seamless loop
-  })();
+  const items = TICKS.map(([o, l]) => `<button class="tick-item" tabindex="-1" onclick="setOdds(${o})">
+      <span class="tick-lbl">${l}</span>
+      <span class="tick-odds">${O.formatAmerican(o)}</span>
+      <span class="tick-prob">${(O.impliedProb(o) * 100).toFixed(1)}%</span>
+    </button>`).join('');
+  $('ticker').innerHTML = items + items; // duplicate for seamless loop
 
-  // ── MATH ─────────────────────────────────────────────
-  function impliedRaw(odds) {
-    return odds > 0 ? 100 / (odds + 100) : Math.abs(odds) / (Math.abs(odds) + 100);
-  }
-  function impliedPct(odds) { return impliedRaw(odds) * 100; }
-  function decimal(odds) {
-    return odds > 0 ? (odds / 100) + 1 : (100 / Math.abs(odds)) + 1;
-  }
-  function fractional(odds) {
-    const d = decimal(odds);
-    const num = Math.round((d - 1) * 100);
-    const den = 100;
-    const g = gcd(num, den);
-    return `${num/g}/${den/g}`;
-  }
-  function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+  // ── INIT ────────────────────────────────────────────
+  loadHash();
+  $('vig-sw').checked = S.noVig;
+  $('hold-in').value = O.trimNum(S.hold * 100, 2);
+  $('stake-in').value = O.trimNum(S.stake, 2);
+  sideA.refresh(); sideB.refresh();
+  setView(S.view);
+  setMode(S.mode);           // also renders the single line + edge calc
 
-  // Slider ↔ Odds mapping (skips zero)
-  // slider [-1000, -1] → odds [-1000, -1]
-  // slider [0, 999]    → odds [+1, +1000]
-  function sldToOdds(v) { return v < 0 ? v : v + 1; }
-  function oddsToSld(o) { return o < 0 ? o : o - 1; }
-
-  // Odds profile label
-  function profile(odds) {
-    if (odds <= -500)       return 'HEAVY FAVORITE';
-    if (odds <= -300)       return 'STRONG FAVORITE';
-    if (odds <= -150)       return 'FAVORITE';
-    if (odds <= -110)       return 'SLIGHT FAVORITE';
-    if (odds < 110)         return "PICK'EM / NEAR EVEN";
-    if (odds <= 150)        return 'SLIGHT UNDERDOG';
-    if (odds <= 300)        return 'MODERATE UNDERDOG';
-    if (odds <= 500)        return 'UNDERDOG';
-    return 'HEAVY UNDERDOG / LONG SHOT';
-  }
-
-  // ── PARSE & VALIDATE ──────────────────────────────────
-  function parse(raw) {
-    const s = raw.trim();
-    if (!s || s === '+' || s === '-') return { partial: true };
-    const n = parseInt(s, 10);
-    if (isNaN(n))        return { err: 'Enter valid odds (e.g. +150, -200)' };
-    if (n === 0)         return { err: 'Odds cannot be zero' };
-    if (Math.abs(n) > 1000) return { err: 'Range: -1000 to +1000' };
-    return { val: n };
-  }
-
-  function fmtOdds(o) { return (o > 0 ? '+' : '') + o; }
-
-  // ── SINGLE CALCULATOR ─────────────────────────────────
-  function onSingleInput() {
-    const r = parse(document.getElementById('s-in').value);
-    const errEl = document.getElementById('s-err');
-    const inEl  = document.getElementById('s-in');
-    if (r.partial) { inEl.classList.remove('bad'); errEl.textContent = ''; return; }
-    if (r.err) { inEl.classList.add('bad'); errEl.textContent = r.err; return; }
-    inEl.classList.remove('bad'); errEl.textContent = '';
-    S.single = r.val;
-    syncSlider();
-    renderSingle();
-  }
-
-  function onSingleSlider() {
-    const v = +document.getElementById('s-sld').value;
-    S.single = sldToOdds(v);
-    document.getElementById('s-in').value = fmtOdds(S.single);
-    document.getElementById('s-in').classList.remove('bad');
-    document.getElementById('s-err').textContent = '';
-    syncSlider();
-    renderSingle();
-  }
-
-  function onSingleKey(e) {
-    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-    e.preventDefault();
-    const step = 5;
-    let o = S.single;
-    if (e.key === 'ArrowUp') {
-      let n = o + step;
-      if (o < 0 && n >= 0) n = 100;
-      o = Math.min(n, 1000);
-    } else {
-      let n = o - step;
-      if (o > 0 && n <= 0) n = -100;
-      o = Math.max(n, -1000);
-    }
-    S.single = o;
-    document.getElementById('s-in').value = fmtOdds(o);
-    document.getElementById('s-in').classList.remove('bad');
-    document.getElementById('s-err').textContent = '';
-    syncSlider();
-    renderSingle();
-  }
-
-  function setOdds(o) {
-    S.single = o;
-    document.getElementById('s-in').value = fmtOdds(o);
-    document.getElementById('s-in').classList.remove('bad');
-    document.getElementById('s-err').textContent = '';
-    syncSlider();
-    renderSingle();
-    // highlight active pick
-    document.querySelectorAll('.pk').forEach(b => {
-      b.classList.toggle('on', b.textContent === fmtOdds(o));
-    });
-  }
-
-  function syncSlider() {
-    const sv = oddsToSld(S.single);
-    document.getElementById('s-sld').value = sv;
-    document.getElementById('s-sld-lbl').textContent = fmtOdds(S.single);
-  }
-
-  function renderSingle() {
-    const o = S.single;
-    const raw = impliedRaw(o);
-    const pct = raw * 100;
-    const dec = decimal(o);
-
-    document.getElementById('s-prob').textContent = pct.toFixed(2) + '%';
-    document.getElementById('s-bar').style.width = pct.toFixed(2) + '%';
-    document.getElementById('s-profile').textContent = profile(o);
-
-    // No-vig note (single line: estimated via assuming symmetric counterpart)
-    if (S.noVig) {
-      // Estimate assuming same-vig counterpart at implied complement
-      const fairEst = pct; // for single we just note it
-      document.getElementById('s-fair').textContent = pct.toFixed(2) + '%';
-      document.getElementById('s-prob-note').textContent = 'Raw probability (vig removal requires 2-sided input)';
-      document.getElementById('fair-block').style.display = 'block';
-    } else {
-      document.getElementById('fair-block').style.display = 'none';
-      document.getElementById('s-prob-note').textContent = 'Includes bookmaker margin';
-    }
-
-    // Sportsbook view
-    document.getElementById('s-dec').textContent = dec.toFixed(3) + 'x';
-    document.getElementById('s-frac').textContent = fractional(o);
-    const ret = (100 * dec).toFixed(2);
-    const profit = (100 * (dec - 1)).toFixed(2);
-    document.getElementById('s-payout').textContent = '$' + ret;
-    document.getElementById('s-payout-note').textContent = 'Profit: $' + profit;
-
-    // PM view
-    document.getElementById('s-pm-price').textContent = raw.toFixed(4);
-    document.getElementById('s-be').textContent = pct.toFixed(2) + '%';
-    document.getElementById('s-mult').textContent = dec.toFixed(3) + 'x';
-
-    calcEdge();
-  }
-
-  // ── EDGE + KELLY ──────────────────────────────────────
-  function calcEdge() {
-    const raw  = document.getElementById('pm-in').value.trim();
-    const pmP  = parseFloat(raw);
-    const fair = impliedRaw(S.single);
-    const eEl  = document.getElementById('edge-out');
-    const kEl  = document.getElementById('kelly-out');
-
-    if (!raw || isNaN(pmP) || pmP <= 0 || pmP >= 1) {
-      eEl.textContent = '—'; eEl.className = 'edge-val edge-neu';
-      kEl.textContent = '—'; kEl.className = 'kelly-val edge-neu';
-      return;
-    }
-
-    const edge = (fair - pmP) * 100;
-    const kelly = pmP < 1 ? ((fair - pmP) / (1 - pmP)) * 100 : 0;
-
-    const sign = v => v >= 0 ? '+' : '';
-    const cls  = v => v > 0.5 ? 'edge-pos' : v < -0.5 ? 'edge-neg' : 'edge-neu';
-
-    eEl.textContent = `${sign(edge)}${edge.toFixed(2)}pp`;
-    eEl.className = `edge-val ${cls(edge)}`;
-
-    kEl.textContent = kelly > 0 ? `${kelly.toFixed(1)}% of bankroll` : `${kelly.toFixed(1)}% (fade)`;
-    kEl.className = `kelly-val ${cls(kelly)}`;
-  }
-
-  // ── VIEW TOGGLE ───────────────────────────────────────
-  function setView(v) {
-    S.view = v;
-    document.getElementById('btn-sb').classList.toggle('on', v === 'sb');
-    document.getElementById('btn-pm').classList.toggle('on', v === 'pm');
-    document.getElementById('view-sb').style.display = v === 'sb' ? 'block' : 'none';
-    document.getElementById('view-pm').style.display = v === 'pm' ? 'block' : 'none';
-  }
-
-  function onVigToggle() {
-    S.noVig = document.getElementById('vig-sw').checked;
-    renderSingle();
-    renderTwoSided();
-  }
-
-  // ── TWO-SIDED MARKET ──────────────────────────────────
-  function onSideInput(s) {
-    const id = s === 'a' ? 'a-in' : 'b-in';
-    const r = parse(document.getElementById(id).value);
-    const errEl = document.getElementById(s + '-err');
-    const inEl  = document.getElementById(id);
-    if (r.partial) { inEl.classList.remove('bad'); errEl.textContent = ''; return; }
-    if (r.err)     { inEl.classList.add('bad'); errEl.textContent = r.err; return; }
-    inEl.classList.remove('bad'); errEl.textContent = '';
-    if (s === 'a') S.sideA = r.val; else S.sideB = r.val;
-    syncSideSlider(s);
-    renderTwoSided();
-  }
-
-  function onSideSlider(s) {
-    const sldId = s + '-sld';
-    const inId  = s + '-in';
-    const o = sldToOdds(+document.getElementById(sldId).value);
-    if (s === 'a') S.sideA = o; else S.sideB = o;
-    document.getElementById(inId).value = fmtOdds(o);
-    document.getElementById(inId).classList.remove('bad');
-    document.getElementById(s + '-err').textContent = '';
-    document.getElementById(s + '-sld-lbl').textContent = fmtOdds(o);
-    renderTwoSided();
-  }
-
-  function onSideKey(e, s) {
-    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-    e.preventDefault();
-    const step = 5;
-    let o = s === 'a' ? S.sideA : S.sideB;
-    if (e.key === 'ArrowUp') {
-      let n = o + step;
-      if (o < 0 && n >= 0) n = 100;
-      o = Math.min(n, 1000);
-    } else {
-      let n = o - step;
-      if (o > 0 && n <= 0) n = -100;
-      o = Math.max(n, -1000);
-    }
-    if (s === 'a') S.sideA = o; else S.sideB = o;
-    document.getElementById(s + '-in').value = fmtOdds(o);
-    document.getElementById(s + '-in').classList.remove('bad');
-    document.getElementById(s + '-err').textContent = '';
-    syncSideSlider(s);
-    renderTwoSided();
-  }
-
-  function syncSideSlider(s) {
-    const o = s === 'a' ? S.sideA : S.sideB;
-    document.getElementById(s + '-sld').value = oddsToSld(o);
-    document.getElementById(s + '-sld-lbl').textContent = fmtOdds(o);
-  }
-
-  function renderTwoSided() {
-    const oA = S.sideA, oB = S.sideB;
-    const pA = impliedRaw(oA), pB = impliedRaw(oB);
-    const total = pA + pB;
-    const vig = (total - 1) * 100;
-    const fairA = pA / total, fairB = pB / total;
-
-    const displayA = S.noVig ? fairA : pA;
-    const displayB = S.noVig ? fairB : pB;
-
-    // Side A
-    document.getElementById('a-raw').textContent  = (pA * 100).toFixed(2) + '%';
-    document.getElementById('a-fair').textContent = (fairA * 100).toFixed(2) + '%';
-    document.getElementById('a-pm').textContent   = displayA.toFixed(4);
-    document.getElementById('a-dec').textContent  = decimal(oA).toFixed(3) + 'x';
-
-    // Side B
-    document.getElementById('b-raw').textContent  = (pB * 100).toFixed(2) + '%';
-    document.getElementById('b-fair').textContent = (fairB * 100).toFixed(2) + '%';
-    document.getElementById('b-pm').textContent   = displayB.toFixed(4);
-    document.getElementById('b-dec').textContent  = decimal(oB).toFixed(3) + 'x';
-
-    // Vig center
-    document.getElementById('ovr-val').textContent = (total * 100).toFixed(2) + '%';
-    const vigEl = document.getElementById('vig-val');
-    vigEl.textContent = vig.toFixed(2) + '%';
-    vigEl.className = 'vig-val ' + (vig < 3 ? 'vig-lo' : vig < 6 ? 'vig-ok' : 'vig-hi');
-
-    // Vig meter: scale 0–15% vig → 0–100%
-    document.getElementById('vig-fill').style.width = Math.min((vig / 15) * 100, 100) + '%';
-  }
-
-  // ── REFERENCE TABLE ───────────────────────────────────
-  const REF_ODDS = [
-    [-1000,'MEGA FAVORITE'],[-500,'HEAVY FAVORITE'],[-300,'STRONG FAVORITE'],
-    [-200,'FAVORITE'],[-150,'MODERATE FAVORITE'],[-130,'SLIGHT FAVORITE'],
-    [-120,'SLIGHT FAVORITE'],[-110,'STANDARD LINE'],
-    [100,'EVEN MONEY'],[110,'SLIGHT UNDERDOG'],[120,'SLIGHT UNDERDOG'],
-    [130,'MODERATE UNDERDOG'],[150,'UNDERDOG'],[200,'UNDERDOG'],
-    [300,'BIG UNDERDOG'],[500,'LONG SHOT'],[1000,'MEGA LONG SHOT'],
-  ];
-  (function buildRef() {
-    const tb = document.getElementById('ref-tbody');
-    tb.innerHTML = REF_ODDS.map(([o, cat]) => {
-      const pct  = impliedPct(o).toFixed(2);
-      const pr   = impliedRaw(o).toFixed(4);
-      const dec  = decimal(o).toFixed(3);
-      const sign = o > 0 ? '+' : '';
-      return `<tr>
-        <td class="t-odds">${sign}${o}</td>
-        <td class="t-prob">${pct}%</td>
-        <td class="t-price">${pr}</td>
-        <td>${dec}x</td>
-        <td class="t-cat">${cat}</td>
-      </tr>`;
-    }).join('');
-  })();
-
-  // ── INIT ─────────────────────────────────────────────
-  function init() {
-    syncSlider();
-    renderSingle();
-    syncSideSlider('a');
-    syncSideSlider('b');
-    renderTwoSided();
-  }
-  init();
+  // Handlers referenced from inline markup
+  Object.assign(window, { setMode, setOdds, useSide, setView, onVigToggle, onHoldInput, onStakeInput, calcEdge, copyLink });
+})();
 </script>
 </body>
 </html>

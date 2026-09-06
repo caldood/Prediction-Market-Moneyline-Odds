@@ -1,0 +1,11 @@
+{
+  "name": "prediction-market-moneyline-odds",
+  "version": "1.1.0",
+  "private": true,
+  "description": "ODDS|CALC — convert sportsbook odds and prediction-market prices to implied probability, strip the vig, and size bets with Kelly.",
+  "scripts": {
+    "test": "node --test",
+    "start": "npx --yes http-server -p 8080 -o"
+  },
+  "engines": { "node": ">=18" }
+}
