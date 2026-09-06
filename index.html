@@ -20,9 +20,9 @@
       --orange-glo: rgba(255,153,0,0.07);
       --orange-g2:  rgba(255,153,0,0.18);
       --text:       #cecece;
-      --text-2:     #888888;
-      --text-3:     #555555;
-      --text-4:     #333333;
+      --text-2:     #9a9a9a;
+      --text-3:     #7a7a7a;
+      --text-4:     #626262;
       --green:      #00cc88;
       --green-dim:  #0b5a40;
       --red:        #ff3d50;
@@ -30,7 +30,7 @@
       --font:       'IBM Plex Mono', 'Courier New', monospace;
     }
     *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-    html { font-size: 13px; scroll-behavior: smooth; }
+    html { font-size: 14px; scroll-behavior: smooth; }
     body {
       background: var(--bg);
       color: var(--text);
@@ -117,7 +117,7 @@
     }
     .tgl-btn:hover { color: var(--text); background: var(--bg-raised); }
     .tgl-btn.on { background: var(--orange); color: #000; font-weight: 700; }
-    .tgl-group.sm .tgl-btn { padding: 4px 10px; font-size: .62rem; }
+    .tgl-group.sm .tgl-btn { padding: 4px 10px; font-size: .68rem; }
     .ctrl-sep { width:1px; height:20px; background: var(--border-hi); }
     .vig-row {
       display: flex; align-items: center; gap: 8px; cursor: pointer;
@@ -144,7 +144,7 @@
       transform: translateX(18px); background: var(--orange);
     }
     .sw input:focus-visible + .sw-track { outline: 2px solid var(--orange); outline-offset: 2px; }
-    .hint { font-size:.6rem; color:var(--text-4); }
+    .hint { font-size:.66rem; color:var(--text-4); }
     .mini-field { display:flex; align-items:center; gap:6px; }
     .mini-in {
       width: 54px; background: var(--bg-input);
@@ -154,10 +154,10 @@
     }
     .mini-in:focus { border-color: var(--orange); }
     .mini-in.bad { border-bottom-color: var(--red); color: var(--red); }
-    .mini-unit { font-size:.62rem; color:var(--text-3); }
+    .mini-unit { font-size:.68rem; color:var(--text-3); }
     .link-btn {
       background: transparent; border: 1px solid var(--border-hi); color: var(--text-2);
-      font-size: .62rem; letter-spacing: .1em; text-transform: uppercase;
+      font-size: .68rem; letter-spacing: .1em; text-transform: uppercase;
       padding: 4px 10px; cursor: pointer; transition: all .12s;
       margin-left: auto;
     }
@@ -167,11 +167,17 @@
     /* ── LAYOUT GRID ─────────────────────────── */
     .main-wrap {
       display: grid; grid-template-columns: 1fr 340px;
-      gap: 1px; background: var(--border);
+      grid-template-areas: "input metrics" "tools metrics" "edge metrics";
+      grid-template-rows: auto auto 1fr;
+      background: var(--bg-panel);
     }
     .panel { background: var(--bg-panel); padding: 20px; }
+    .panel-input { grid-area: input; padding-bottom: 0; }
+    .panel-tools { grid-area: tools; padding-top: 0; }
+    .panel-edge  { grid-area: edge; padding-top: 0; }
+    .metrics     { grid-area: metrics; border-left: 1px solid var(--border); }
     .p-title {
-      font-size: .6rem; font-weight: 700; letter-spacing: .2em;
+      font-size: .66rem; font-weight: 700; letter-spacing: .2em;
       text-transform: uppercase; color: var(--text-4);
       padding-bottom: 10px; margin-bottom: 18px;
       border-bottom: 1px solid var(--border);
@@ -180,7 +186,7 @@
 
     /* ── ODDS INPUT ──────────────────────────── */
     .f-lbl {
-      font-size: .6rem; letter-spacing: .15em; text-transform: uppercase;
+      font-size: .66rem; letter-spacing: .15em; text-transform: uppercase;
       color: var(--text-3); margin-bottom: 6px;
     }
     .odds-in {
@@ -197,14 +203,14 @@
     }
     .odds-in.bad { border-left-color: var(--red); color: var(--red); }
     .odds-in::placeholder { color: var(--text-4); }
-    .in-err { font-size:.6rem; color: var(--red); margin-top:4px; min-height:14px; }
+    .in-err { font-size:.66rem; color: var(--red); margin-top:4px; min-height:14px; }
     .in-row { display:flex; gap:10px; align-items:flex-end; }
     .in-row .odds-in { flex: 1; }
     .in-unit { font-size: 1rem; color: var(--text-3); padding-bottom: 14px; min-width: 2ch; }
 
     /* ── PROFILE BADGE ───────────────────────── */
     .profile-badge {
-      display: inline-block; font-size: .6rem; font-weight: 700;
+      display: inline-block; font-size: .66rem; font-weight: 700;
       letter-spacing: .12em; text-transform: uppercase;
       padding: 3px 8px; margin-top: 6px;
       border: 1px solid var(--border-hi);
@@ -213,10 +219,10 @@
     }
 
     /* ── SLIDER ──────────────────────────────── */
-    .sld-wrap { margin-top: 20px; }
+    .sld-wrap { margin-top: 4px; }
     .sld-lbls {
       display: flex; justify-content: space-between;
-      font-size: .58rem; color: var(--text-4); margin-bottom: 5px;
+      font-size: .64rem; color: var(--text-4); margin-bottom: 5px;
     }
     .sld-mid { color: var(--text-4); }
     input[type=range] {
@@ -238,7 +244,7 @@
       width: 14px; height: 22px; background: var(--orange);
       border-radius: 0; border: none;
     }
-    .sld-cur { text-align:center; font-size:.62rem; color:var(--text-3); margin-top:3px; }
+    .sld-cur { text-align:center; font-size:.68rem; color:var(--text-3); margin-top:3px; }
 
     /* ── QUICK PICKS ──────────────────────────── */
     .picks { margin-top: 20px; }
@@ -253,7 +259,7 @@
     .pk.on { border-color: var(--orange); color: var(--orange); background: var(--orange-glo); }
 
     /* ── EDGE CALC ────────────────────────────── */
-    .edge-section { margin-top: 24px; border-top: 1px solid var(--border); padding-top: 16px; }
+    .edge-section { margin-top: 4px; border-top: 1px solid var(--border); padding-top: 16px; }
     .edge-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
     .edge-in {
       width: 110px; background: var(--bg-input);
@@ -263,7 +269,7 @@
     }
     .edge-in:focus { border-color: var(--green); }
     .edge-in.bad { border-bottom-color: var(--red); color: var(--red); }
-    .edge-key { font-size:.62rem; color:var(--text-3); letter-spacing:.08em; text-transform:uppercase; }
+    .edge-key { font-size:.68rem; color:var(--text-3); letter-spacing:.08em; text-transform:uppercase; }
     .edge-val { font-size: .85rem; font-weight: 600; }
     .edge-pos { color: var(--green); }
     .edge-neg { color: var(--red); }
@@ -276,9 +282,9 @@
     .edge-cell { background: var(--bg-raised); padding: 10px 12px; }
     .edge-cell .m-lbl { margin-bottom: 3px; }
     .edge-cell .v { font-size: 1.05rem; font-weight: 700; }
-    .edge-cell .s { font-size: .58rem; color: var(--text-3); margin-top: 2px; }
+    .edge-cell .s { font-size: .64rem; color: var(--text-3); margin-top: 2px; }
     .edge-flag {
-      display: inline-block; font-size: .6rem; font-weight: 700; letter-spacing: .14em;
+      display: inline-block; font-size: .66rem; font-weight: 700; letter-spacing: .14em;
       padding: 3px 8px; border: 1px solid var(--border-hi); color: var(--text-2);
     }
     .edge-flag.yes { color: var(--green); border-color: var(--green-dim); background: rgba(0,204,136,.06); }
@@ -292,7 +298,7 @@
     }
     .m-block:last-child { border-bottom: none; }
     .m-lbl {
-      font-size:.58rem; letter-spacing:.18em; text-transform:uppercase;
+      font-size:.64rem; letter-spacing:.18em; text-transform:uppercase;
       color: var(--text-4); margin-bottom: 5px;
     }
     .m-val {
@@ -303,11 +309,11 @@
     .m-val.sm { font-size: 1.5rem; color: var(--text); }
     .m-val.md { font-size: 2rem; }
     .m-val.gr { color: var(--green); }
-    .m-sub { font-size: .6rem; color: var(--text-3); margin-top: 4px; }
+    .m-sub { font-size: .66rem; color: var(--text-3); margin-top: 4px; }
     .m-alt {
       display: flex; justify-content: space-between; align-items: baseline;
       margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border);
-      font-size: .62rem; color: var(--text-3);
+      font-size: .68rem; color: var(--text-3);
     }
     .m-alt b { color: var(--text-2); font-weight: 600; }
     .m-fair-row { display:flex; gap:14px; flex-wrap:wrap; margin-top:6px; font-size:.68rem; color:var(--text-2); }
@@ -328,7 +334,7 @@
     }
     .bar-lbls {
       display: flex; justify-content: space-between;
-      font-size: .55rem; color: var(--text-4); margin-top: 3px;
+      font-size: .68rem; color: var(--text-4); margin-top: 3px;
     }
 
     /* 2-col metrics grid */
@@ -358,7 +364,7 @@
       display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
     }
     .two-hdr-txt {
-      font-size: .6rem; font-weight: 700; letter-spacing: .2em;
+      font-size: .66rem; font-weight: 700; letter-spacing: .2em;
       text-transform: uppercase; color: var(--text-4);
     }
     .two-grid {
@@ -386,14 +392,14 @@
       padding: 5px 0; border-bottom: 1px solid var(--border);
     }
     .st-row:last-child { border-bottom:none; }
-    .st-k { font-size:.58rem; text-transform:uppercase; letter-spacing:.12em; color:var(--text-4); }
+    .st-k { font-size:.64rem; text-transform:uppercase; letter-spacing:.12em; color:var(--text-4); }
     .st-v { font-size:.82rem; font-weight:600; color:var(--text); font-variant-numeric: tabular-nums; }
     .st-v.hi { color: var(--orange); }
     .st-v.gr { color: var(--green); }
     .use-btn {
       margin-top: 12px; width: 100%;
       background: transparent; border: 1px dashed var(--border-hi); color: var(--text-3);
-      font-size: .6rem; letter-spacing: .12em; text-transform: uppercase;
+      font-size: .66rem; letter-spacing: .12em; text-transform: uppercase;
       padding: 6px; cursor: pointer; transition: all .12s;
     }
     .use-btn:hover { color: var(--orange); border-color: var(--orange-dim); background: var(--orange-glo); }
@@ -413,7 +419,7 @@
     .vig-meter { width: 100%; }
     .vm-track { height: 5px; background: var(--border-hi); }
     .vm-fill { height: 100%; background: var(--red); transition: width .3s; }
-    .vig-note { font-size:.58rem; color:var(--text-4); text-align:center; line-height:1.7; }
+    .vig-note { font-size:.64rem; color:var(--text-4); text-align:center; line-height:1.7; }
 
     /* ── REFERENCE TABLE ─────────────────────── */
     .ref-wrap {
@@ -421,7 +427,7 @@
       border-top: 1px solid var(--border);
     }
     .ref-title {
-      font-size:.6rem; font-weight:700; letter-spacing:.2em; text-transform:uppercase;
+      font-size:.66rem; font-weight:700; letter-spacing:.2em; text-transform:uppercase;
       color:var(--text-4); margin-bottom:12px;
       display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;
     }
@@ -432,7 +438,7 @@
     }
     .ref-table th {
       text-align: left; padding: 5px 12px;
-      font-size:.58rem; letter-spacing:.12em; text-transform:uppercase;
+      font-size:.64rem; letter-spacing:.12em; text-transform:uppercase;
       color: var(--text-4); background: var(--bg);
       border-bottom: 1px solid var(--border);
     }
@@ -449,7 +455,7 @@
     .ref-table .t-odds { color: var(--orange); font-weight: 600; }
     .ref-table .t-prob { color: var(--text); font-weight: 500; }
     .ref-table .t-price { color: var(--green); }
-    .ref-table .t-cat { color: var(--text-4); font-size: .58rem; text-align: left !important; }
+    .ref-table .t-cat { color: var(--text-4); font-size: .64rem; text-align: left !important; }
 
     /* ── FOOTER ──────────────────────────────── */
     footer {
@@ -459,9 +465,9 @@
       align-items: center;
     }
     .f-grp { display:flex; flex-direction:column; gap:3px; }
-    .f-key { font-size:.57rem; text-transform:uppercase; letter-spacing:.12em; color:var(--text-4); }
+    .f-key { font-size:.64rem; text-transform:uppercase; letter-spacing:.12em; color:var(--text-4); }
     .f-val { font-size:.65rem; color:var(--orange-dim); font-style:italic; }
-    .f-copy { font-size:.58rem; color:var(--text-4); }
+    .f-copy { font-size:.64rem; color:var(--text-4); }
 
     /* ── CURSOR ──────────────────────────────── */
     .cur {
@@ -477,13 +483,20 @@
 
     /* ── RESPONSIVE ──────────────────────────── */
     @media (max-width:920px) {
-      .main-wrap { grid-template-columns: 1fr; }
+      .main-wrap {
+        grid-template-columns: 1fr;
+        grid-template-areas: "input" "metrics" "tools" "edge";
+        grid-template-rows: auto;
+      }
+      .panel-input { padding-bottom: 16px; }
+      .metrics { border-left: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+      .panel-tools { padding-top: 20px; }
       .two-grid { grid-template-columns: 1fr; }
       .vig-center { flex-direction: row; flex-wrap: wrap; justify-content: space-around; }
       .vig-meter { order: 3; }
     }
     @media (max-width:600px) {
-      html { font-size: 12px; }
+      html { font-size: 13px; }
       .hdr-title { display:none; }
       .hdr-top, .ctrl-bar, .panel, .ref-wrap { padding-left: 12px; padding-right: 12px; }
       .m-val { font-size:2rem; }
@@ -544,8 +557,8 @@
 <!-- ░░ MAIN GRID ░░ -->
 <div class="main-wrap">
 
-  <!-- LEFT: CALCULATOR -->
-  <div class="panel">
+  <!-- LEFT: INPUT -->
+  <div class="panel panel-input">
     <div class="p-title">
       <span>SINGLE LINE CALCULATOR</span>
       <div class="tgl-group sm" role="group" aria-label="Input format">
@@ -569,7 +582,10 @@
         <span class="profile-badge" id="s-profile">MODERATE UNDERDOG</span>
       </div>
     </div>
+  </div>
 
+  <!-- LEFT: SLIDER + QUICK PICKS -->
+  <div class="panel panel-tools">
     <div class="sld-wrap">
       <div class="f-lbl">SLIDER ADJUSTMENT</div>
       <div class="sld-lbls">
@@ -586,11 +602,13 @@
       <div class="f-lbl">QUICK PICKS</div>
       <div class="picks-grid" id="picks-grid"></div>
     </div>
+  </div>
 
-    <!-- EDGE CALCULATOR -->
+  <!-- LEFT: EDGE CALCULATOR -->
+  <div class="panel panel-edge">
     <div class="edge-section">
       <div class="f-lbl">PREDICTION MARKET EDGE CALCULATOR</div>
-      <div style="font-size:.58rem;color:var(--text-4);margin-bottom:6px">
+      <div style="font-size:.64rem;color:var(--text-4);margin-bottom:6px">
         Enter the market's YES price (0.62, 62¢ or 62%). Edge is measured against the
         <b>fair</b> (no-vig) probability of the line above, so the book's margin never counts as edge.
       </div>
@@ -734,7 +752,7 @@
     <div class="side-panel">
       <div class="side-hdr">
         <span class="side-lbl">SIDE A</span>
-        <span style="font-size:.58rem;color:var(--text-4)">TEAM / PLAYER A</span>
+        <span style="font-size:.64rem;color:var(--text-4)">TEAM / PLAYER A</span>
       </div>
       <label class="f-lbl" for="a-in">AMERICAN ODDS</label>
       <input class="side-odds-in" id="a-in" type="text" value="-110" autocomplete="off" spellcheck="false">
@@ -794,7 +812,7 @@
     <div class="side-panel">
       <div class="side-hdr">
         <span class="side-lbl">SIDE B</span>
-        <span style="font-size:.58rem;color:var(--text-4)">TEAM / PLAYER B</span>
+        <span style="font-size:.64rem;color:var(--text-4)">TEAM / PLAYER B</span>
       </div>
       <label class="f-lbl" for="b-in">AMERICAN ODDS</label>
       <input class="side-odds-in" id="b-in" type="text" value="-110" autocomplete="off" spellcheck="false">
