@@ -133,13 +133,13 @@ test('parseDecimal and parseProbPct', () => {
   assert.ok(O.parseProbPct('100').err);
 });
 
-test('clock reports New York time with EST/EDT', () => {
-  const winter = O.nyClock(new Date('2026-01-15T17:00:00Z'));
-  const summer = O.nyClock(new Date('2026-07-15T17:00:00Z'));
-  assert.equal(winter, '12:00:00 EST');
-  assert.equal(summer, '13:00:00 EDT');
-  const midnight = O.nyClock(new Date('2026-01-15T05:00:00Z'));
-  assert.equal(midnight, '00:00:00 EST');
+test('clock reports Pacific time with PST/PDT', () => {
+  const winter = O.clock(new Date('2026-01-15T20:00:00Z'));
+  const summer = O.clock(new Date('2026-07-15T20:00:00Z'));
+  assert.equal(winter, '12:00:00 PST');
+  assert.equal(summer, '13:00:00 PDT');
+  const midnight = O.clock(new Date('2026-01-15T08:00:00Z'));
+  assert.equal(midnight, '00:00:00 PST');
 });
 
 test('trimNum drops trailing zeros', () => {

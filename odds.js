@@ -180,17 +180,17 @@
   }
 
   // ── CLOCK ────────────────────────────────────────────────────────────────
-  // New York time with the correct EST/EDT label.
-  const nyFmt = typeof Intl !== 'undefined' && Intl.DateTimeFormat
+  // Pacific time with the correct PST/PDT label.
+  const clockFmt = typeof Intl !== 'undefined' && Intl.DateTimeFormat
     ? new Intl.DateTimeFormat('en-US', {
-        timeZone: 'America/New_York', hour12: false,
+        timeZone: 'America/Los_Angeles', hour12: false,
         hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short',
       })
     : null;
-  function nyClock(date) {
-    if (!nyFmt) return date.toTimeString().slice(0, 8);
+  function clock(date) {
+    if (!clockFmt) return date.toTimeString().slice(0, 8);
     // Some engines render midnight as "24:00:00"; normalise to "00".
-    return nyFmt.format(date).replace(/^24:/, '00:');
+    return clockFmt.format(date).replace(/^24:/, '00:');
   }
 
   return {
@@ -202,6 +202,6 @@
     profile, formatAmerican, trimNum,
     americanToLinear, linearToAmerican, stepAmerican,
     parseAmerican, parseDecimal, parseProbPct, parsePrice,
-    nyClock,
+    clock,
   };
 });

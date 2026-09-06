@@ -521,7 +521,7 @@
     <div class="hdr-title">MONEYLINE PROBABILITY ENGINE — PREDICTION MARKET ANALYTICS</div>
     <div class="hdr-right">
       <span class="status-dot" aria-hidden="true"></span>
-      <span id="clock" aria-label="New York time">--:--:--</span>
+      <span id="clock" aria-label="Pacific time">--:--:--</span>
     </div>
   </div>
   <div class="ticker-wrap" title="Click a line to load it">
@@ -1297,7 +1297,7 @@
   }
 
   // ── CLOCK + TICKER ──────────────────────────────────
-  function tick() { $('clock').textContent = O.nyClock(new Date()); }
+  function tick() { $('clock').textContent = O.clock(new Date()); }
   setInterval(tick, 1000); tick();
 
   const TICKS = [
